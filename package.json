@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
     "test:api": "node scripts/test-list-api.mjs",
@@ -22,6 +23,9 @@
     "model-context-protocol"
   ],
   "license": "MIT",
+  "repository": "github:Xodus-CO/hcloud-mcp",
+  "homepage": "https://github.com/Xodus-CO/hcloud-mcp#readme",
+  "bugs": "https://github.com/Xodus-CO/hcloud-mcp/issues",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
     "dotenv": "^17.3.1",

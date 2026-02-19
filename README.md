@@ -59,7 +59,7 @@ If you installed from source, use an **absolute path** to `run.js` in `args` so 
 "args": ["/path/to/hcloud-mcp/run.js"]
 ```
 
-Replace `/path/to/hcloud-mcp` with your actual project path (e.g. `/home/<username>/Projects/hcloud-mcp`).
+Replace `/path/to/hcloud-mcp` with your actual project path (e.g. `/home/<username>/hcloud-mcp`).
 
 ## Tools
 
