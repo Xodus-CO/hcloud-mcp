@@ -1,6 +1,6 @@
 {
   "name": "hcloud-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Standalone MCP server for Hetzner Cloud API — use with Cursor, Claude Desktop, CLI, or any MCP client",
   "type": "module",
   "main": "dist/index.js",
