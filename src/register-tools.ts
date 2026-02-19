@@ -1,5 +1,5 @@
 
-import { McpServer } from "./mcp-server.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
     ServersService,
     LoadBalancersService,
@@ -53,7 +53,7 @@ export function registerTools(server: McpServer) {
         "list_servers",
         "List all servers",
         {},
-        async () => withToolError(async () => {
+        async (_args?, _extra?) => withToolError(async () => {
             const response = await ServersService.getServers({});
             return { content: [{ type: "text", text: JSON.stringify(response.servers, null, 2) }] };
         })
@@ -73,7 +73,7 @@ export function registerTools(server: McpServer) {
             networks: z.array(z.number()).optional(),
             labels: z.record(z.string()).optional(),
         },
-        async (args) => withToolError(async () => {
+        async (args, _extra) => withToolError(async () => {
             const response = await ServersService.postServers({ requestBody: args as any });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -83,7 +83,7 @@ export function registerTools(server: McpServer) {
         "delete_server",
         "Delete a server",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             const response = await ServersService.deleteServers({ id });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -97,7 +97,7 @@ export function registerTools(server: McpServer) {
             server_type: z.string().describe("New server type (e.g. cx22)"),
             upgrade_disk: z.boolean().default(true).describe("Whether to upgrade disk size. If true, cannot downgrade later."),
         },
-        async ({ id, server_type, upgrade_disk }) => withToolError(async () => {
+        async ({ id, server_type, upgrade_disk }, _extra) => withToolError(async () => {
             const response = await ServerActionsService.postServersActionsChangeType({
                 id,
                 requestBody: { server_type, upgrade_disk }
@@ -110,7 +110,7 @@ export function registerTools(server: McpServer) {
         "power_on_server",
         "Power on a server",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             const response = await ServerActionsService.postServersActionsPoweron({ id });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -120,7 +120,7 @@ export function registerTools(server: McpServer) {
         "power_off_server",
         "Power off a server (hard)",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             const response = await ServerActionsService.postServersActionsPoweroff({ id });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -130,7 +130,7 @@ export function registerTools(server: McpServer) {
         "reboot_server",
         "Reboot a server (soft)",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             const response = await ServerActionsService.postServersActionsReboot({ id });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -140,7 +140,7 @@ export function registerTools(server: McpServer) {
         "shutdown_server",
         "Shutdown a server (soft)",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             const response = await ServerActionsService.postServersActionsShutdown({ id });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -150,7 +150,7 @@ export function registerTools(server: McpServer) {
         "reset_server",
         "Reset a server (hard)",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             const response = await ServerActionsService.postServersActionsReset({ id });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -164,7 +164,7 @@ export function registerTools(server: McpServer) {
             name: z.string().optional(),
             labels: z.record(z.string()).optional(),
         },
-        async ({ id, name, labels }) => withToolError(async () => {
+        async ({ id, name, labels }, _extra) => withToolError(async () => {
             const response = await ServersService.putServers({
                 id,
                 requestBody: { name, labels }
@@ -180,7 +180,7 @@ export function registerTools(server: McpServer) {
             id: z.number(),
             iso: z.string().describe("ID or name of the ISO"),
         },
-        async ({ id, iso }) => withToolError(async () => {
+        async ({ id, iso }, _extra) => withToolError(async () => {
             const response = await ServerActionsService.postServersActionsAttachIso({
                 id,
                 requestBody: { iso }
@@ -193,7 +193,7 @@ export function registerTools(server: McpServer) {
         "detach_iso",
         "Detach an ISO from a server",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             const response = await ServerActionsService.postServersActionsDetachIso({ id });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -208,7 +208,7 @@ export function registerTools(server: McpServer) {
             ip: z.string().optional().describe("IP to request, otherwise auto-assigned"),
             alias_ips: z.array(z.string()).optional(),
         },
-        async ({ id, network, ip, alias_ips }) => withToolError(async () => {
+        async ({ id, network, ip, alias_ips }, _extra) => withToolError(async () => {
             const response = await ServerActionsService.postServersActionsAttachToNetwork({
                 id,
                 requestBody: { network, ip, alias_ips }
@@ -224,7 +224,7 @@ export function registerTools(server: McpServer) {
             id: z.number(),
             network: z.number().describe("ID of the network"),
         },
-        async ({ id, network }) => withToolError(async () => {
+        async ({ id, network }, _extra) => withToolError(async () => {
             const response = await ServerActionsService.postServersActionsDetachFromNetwork({
                 id,
                 requestBody: { network }
@@ -238,7 +238,7 @@ export function registerTools(server: McpServer) {
         "list_load_balancers",
         "List all load balancers",
         {},
-        async () => withToolError(async () => {
+        async (_args?, _extra?) => withToolError(async () => {
             const response = await LoadBalancersService.getLoadBalancers({});
             return { content: [{ type: "text", text: JSON.stringify(response.load_balancers, null, 2) }] };
         })
@@ -255,7 +255,7 @@ export function registerTools(server: McpServer) {
             network_zone: z.string().optional(),
             labels: z.record(z.string()).optional(),
         },
-        async (args) => withToolError(async () => {
+        async (args, _extra) => withToolError(async () => {
             const response = await LoadBalancersService.postLoadBalancers({ requestBody: args as any });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -265,7 +265,7 @@ export function registerTools(server: McpServer) {
         "delete_load_balancer",
         "Delete a load balancer",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             await LoadBalancersService.deleteLoadBalancers({ id });
             return { content: [{ type: "text", text: "Load Balancer deleted successfully" }] };
         })
@@ -279,7 +279,7 @@ export function registerTools(server: McpServer) {
             name: z.string().optional(),
             labels: z.record(z.string()).optional(),
         },
-        async ({ id, name, labels }) => withToolError(async () => {
+        async ({ id, name, labels }, _extra) => withToolError(async () => {
             const response = await LoadBalancersService.putLoadBalancers({
                 id,
                 requestBody: { name, labels }
@@ -299,7 +299,7 @@ export function registerTools(server: McpServer) {
             ip: z.object({ ip: z.string() }).optional(),
             use_private_ip: z.boolean().optional(),
         },
-        async ({ id, type, server, label_selector, ip, use_private_ip }) => withToolError(async () => {
+        async ({ id, type, server, label_selector, ip, use_private_ip }, _extra) => withToolError(async () => {
             const response = await LoadBalancerActionsService.postLoadBalancersActionsAddTarget({
                 id,
                 requestBody: { type, server, label_selector, ip, use_private_ip }
@@ -318,7 +318,7 @@ export function registerTools(server: McpServer) {
             label_selector: z.object({ selector: z.string() }).optional(),
             ip: z.object({ ip: z.string() }).optional(),
         },
-        async ({ id, type, server, label_selector, ip }) => withToolError(async () => {
+        async ({ id, type, server, label_selector, ip }, _extra) => withToolError(async () => {
             const response = await LoadBalancerActionsService.postLoadBalancersActionsRemoveTarget({
                 id,
                 requestBody: { type, server, label_selector, ip }
@@ -358,7 +358,7 @@ export function registerTools(server: McpServer) {
                 sticky_sessions: z.boolean().optional(),
             }).optional(),
         },
-        async (args) => withToolError(async () => {
+        async (args, _extra) => withToolError(async () => {
             const response = await LoadBalancerActionsService.postLoadBalancersActionsAddService({
                 id: args.id,
                 requestBody: args as any
@@ -374,7 +374,7 @@ export function registerTools(server: McpServer) {
             id: z.number(),
             listen_port: z.number(),
         },
-        async ({ id, listen_port }) => withToolError(async () => {
+        async ({ id, listen_port }, _extra) => withToolError(async () => {
             const response = await LoadBalancerActionsService.postLoadBalancersActionsDeleteService({
                 id,
                 requestBody: { listen_port }
@@ -388,7 +388,7 @@ export function registerTools(server: McpServer) {
         "list_networks",
         "List all networks",
         {},
-        async () => withToolError(async () => {
+        async (_args?, _extra?) => withToolError(async () => {
             const response = await NetworksService.getNetworks({});
             return { content: [{ type: "text", text: JSON.stringify(response.networks, null, 2) }] };
         })
@@ -402,7 +402,7 @@ export function registerTools(server: McpServer) {
             ip_range: z.string(),
             labels: z.record(z.string()).optional(),
         },
-        async (args) => withToolError(async () => {
+        async (args, _extra) => withToolError(async () => {
             const response = await NetworksService.postNetworks({ requestBody: args as any });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -412,7 +412,7 @@ export function registerTools(server: McpServer) {
         "delete_network",
         "Delete a network",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             await NetworksService.deleteNetworks({ id });
             return { content: [{ type: "text", text: "Network deleted successfully" }] };
         })
@@ -426,7 +426,7 @@ export function registerTools(server: McpServer) {
             name: z.string().optional(),
             labels: z.record(z.string()).optional(),
         },
-        async ({ id, name, labels }) => withToolError(async () => {
+        async ({ id, name, labels }, _extra) => withToolError(async () => {
             const response = await NetworksService.putNetworks({
                 id,
                 requestBody: { name, labels }
@@ -445,7 +445,7 @@ export function registerTools(server: McpServer) {
             ip_range: z.string().optional().describe("CIDR, e.g. 10.0.0.0/24; omit for auto /24"),
             vswitch_id: z.number().optional().describe("Required if type is vswitch"),
         },
-        async ({ id, type, network_zone, ip_range, vswitch_id }) => withToolError(async () => {
+        async ({ id, type, network_zone, ip_range, vswitch_id }, _extra) => withToolError(async () => {
             const response = await NetworkActionsService.postNetworksActionsAddSubnet({
                 id,
                 requestBody: { type, network_zone, ip_range, vswitch_id }
@@ -461,7 +461,7 @@ export function registerTools(server: McpServer) {
             id: z.number().describe("Network ID"),
             ip_range: z.string().describe("IP range of subnet to delete, e.g. 10.0.1.0/24"),
         },
-        async ({ id, ip_range }) => withToolError(async () => {
+        async ({ id, ip_range }, _extra) => withToolError(async () => {
             const response = await NetworkActionsService.postNetworksActionsDeleteSubnet({
                 id,
                 requestBody: { ip_range }
@@ -475,7 +475,7 @@ export function registerTools(server: McpServer) {
         "list_volumes",
         "List all volumes",
         {},
-        async () => withToolError(async () => {
+        async (_args?, _extra?) => withToolError(async () => {
             const response = await VolumesService.getVolumes({});
             return { content: [{ type: "text", text: JSON.stringify(response.volumes, null, 2) }] };
         })
@@ -493,7 +493,7 @@ export function registerTools(server: McpServer) {
             server: z.number().optional(),
             labels: z.record(z.string()).optional(),
         },
-        async (args) => withToolError(async () => {
+        async (args, _extra) => withToolError(async () => {
             const response = await VolumesService.postVolumes({ requestBody: args as any });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -507,7 +507,7 @@ export function registerTools(server: McpServer) {
             name: z.string().optional(),
             labels: z.record(z.string()).optional(),
         },
-        async ({ id, name, labels }) => withToolError(async () => {
+        async ({ id, name, labels }, _extra) => withToolError(async () => {
             const response = await VolumesService.putVolumes({
                 id,
                 requestBody: { name, labels }
@@ -524,7 +524,7 @@ export function registerTools(server: McpServer) {
             server: z.number(),
             automount: z.boolean().optional(),
         },
-        async ({ id, server, automount }) => withToolError(async () => {
+        async ({ id, server, automount }, _extra) => withToolError(async () => {
             const response = await VolumeActionsService.postVolumesActionsAttach({
                 id,
                 requestBody: { server, automount }
@@ -537,7 +537,7 @@ export function registerTools(server: McpServer) {
         "detach_volume",
         "Detach a volume",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             const response = await VolumeActionsService.postVolumesActionsDetach({ id });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -547,7 +547,7 @@ export function registerTools(server: McpServer) {
         "delete_volume",
         "Delete a volume (must be detached; all data destroyed)",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             await VolumesService.deleteVolumes({ id });
             return { content: [{ type: "text", text: "Volume deleted successfully" }] };
         })
@@ -558,7 +558,7 @@ export function registerTools(server: McpServer) {
         "list_firewalls",
         "List all firewalls",
         {},
-        async () => withToolError(async () => {
+        async (_args?, _extra?) => withToolError(async () => {
             const response = await FirewallsService.getFirewalls({});
             return { content: [{ type: "text", text: JSON.stringify(response.firewalls, null, 2) }] };
         })
@@ -572,7 +572,7 @@ export function registerTools(server: McpServer) {
             rules: z.array(z.any()).optional(),
             labels: z.record(z.string()).optional(),
         },
-        async (args) => withToolError(async () => {
+        async (args, _extra) => withToolError(async () => {
             const response = await FirewallsService.postFirewalls({ requestBody: args as any });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -586,7 +586,7 @@ export function registerTools(server: McpServer) {
             name: z.string().optional(),
             labels: z.record(z.string()).optional(),
         },
-        async ({ id, name, labels }) => withToolError(async () => {
+        async ({ id, name, labels }, _extra) => withToolError(async () => {
             const response = await FirewallsService.putFirewalls({
                 id,
                 requestBody: { name, labels }
@@ -599,7 +599,7 @@ export function registerTools(server: McpServer) {
         "delete_firewall",
         "Delete a firewall (must not be in use)",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             await FirewallsService.deleteFirewalls({ id });
             return { content: [{ type: "text", text: "Firewall deleted successfully" }] };
         })
@@ -610,7 +610,7 @@ export function registerTools(server: McpServer) {
         "list_floating_ips",
         "List all floating IPs",
         {},
-        async () => withToolError(async () => {
+        async (_args?, _extra?) => withToolError(async () => {
             const response = await FloatingIPsService.getFloatingIps({});
             return { content: [{ type: "text", text: JSON.stringify(response.floating_ips, null, 2) }] };
         })
@@ -626,7 +626,7 @@ export function registerTools(server: McpServer) {
             description: z.string().optional(),
             labels: z.record(z.string()).optional(),
         },
-        async (args) => withToolError(async () => {
+        async (args, _extra) => withToolError(async () => {
             const response = await FloatingIPsService.postFloatingIps({ requestBody: args as any });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -640,7 +640,7 @@ export function registerTools(server: McpServer) {
             description: z.string().optional(),
             labels: z.record(z.string()).optional(),
         },
-        async ({ id, description, labels }) => withToolError(async () => {
+        async ({ id, description, labels }, _extra) => withToolError(async () => {
             const response = await FloatingIPsService.putFloatingIps({
                 id,
                 requestBody: { description, labels }
@@ -656,7 +656,7 @@ export function registerTools(server: McpServer) {
             id: z.number(),
             server: z.number(),
         },
-        async ({ id, server }) => withToolError(async () => {
+        async ({ id, server }, _extra) => withToolError(async () => {
             const response = await FloatingIpActionsService.postFloatingIpsActionsAssign({
                 id,
                 requestBody: { server }
@@ -669,7 +669,7 @@ export function registerTools(server: McpServer) {
         "unassign_floating_ip",
         "Unassign a floating IP",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             const response = await FloatingIpActionsService.postFloatingIpsActionsUnassign({ id });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -679,7 +679,7 @@ export function registerTools(server: McpServer) {
         "delete_floating_ip",
         "Delete a floating IP (unassigns from server if attached)",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             await FloatingIPsService.deleteFloatingIps({ id });
             return { content: [{ type: "text", text: "Floating IP deleted successfully" }] };
         })
@@ -690,7 +690,7 @@ export function registerTools(server: McpServer) {
         "list_primary_ips",
         "List all Primary IPs (static IPs bound to a datacenter, assignable to one server)",
         {},
-        async () => withToolError(async () => {
+        async (_args?, _extra?) => withToolError(async () => {
             const response = await PrimaryIPsService.getPrimaryIps({});
             return { content: [{ type: "text", text: JSON.stringify(response.primary_ips, null, 2) }] };
         })
@@ -707,7 +707,7 @@ export function registerTools(server: McpServer) {
             auto_delete: z.boolean().optional(),
             labels: z.record(z.string()).optional(),
         },
-        async (args) => withToolError(async () => {
+        async (args, _extra) => withToolError(async () => {
             const requestBody = {
                 name: args.name,
                 type: args.type,
@@ -726,7 +726,7 @@ export function registerTools(server: McpServer) {
         "get_primary_ip",
         "Get a single Primary IP by ID",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             const response = await PrimaryIPsService.getPrimaryIps1({ id });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -740,7 +740,7 @@ export function registerTools(server: McpServer) {
             name: z.string().optional(),
             labels: z.record(z.string()).optional(),
         },
-        async ({ id, name, labels }) => withToolError(async () => {
+        async ({ id, name, labels }, _extra) => withToolError(async () => {
             const response = await PrimaryIPsService.putPrimaryIps({
                 id,
                 requestBody: { name, labels }
@@ -753,7 +753,7 @@ export function registerTools(server: McpServer) {
         "delete_primary_ip",
         "Delete a Primary IP (unassigns from server if assigned; server must be off)",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             await PrimaryIPsService.deletePrimaryIps({ id });
             return { content: [{ type: "text", text: "Primary IP deleted successfully" }] };
         })
@@ -766,7 +766,7 @@ export function registerTools(server: McpServer) {
             id: z.number().describe("Primary IP ID"),
             server: z.number().describe("Server ID"),
         },
-        async ({ id, server }) => withToolError(async () => {
+        async ({ id, server }, _extra) => withToolError(async () => {
             const response = await PrimaryIpActionsService.postPrimaryIpsActionsAssign({
                 id,
                 requestBody: { assignee_id: server, assignee_type: "server" }
@@ -779,7 +779,7 @@ export function registerTools(server: McpServer) {
         "unassign_primary_ip",
         "Unassign a Primary IP from its server (server must be powered off)",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             const response = await PrimaryIpActionsService.postPrimaryIpsActionsUnassign({ id });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -790,7 +790,7 @@ export function registerTools(server: McpServer) {
         "list_ssh_keys",
         "List all SSH keys",
         {},
-        async () => withToolError(async () => {
+        async (_args?, _extra?) => withToolError(async () => {
             const response = await SshKeysService.getSshKeys({});
             return { content: [{ type: "text", text: JSON.stringify(response.ssh_keys, null, 2) }] };
         })
@@ -804,7 +804,7 @@ export function registerTools(server: McpServer) {
             public_key: z.string(),
             labels: z.record(z.string()).optional(),
         },
-        async (args) => withToolError(async () => {
+        async (args, _extra) => withToolError(async () => {
             const response = await SshKeysService.postSshKeys({ requestBody: args as any });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -818,7 +818,7 @@ export function registerTools(server: McpServer) {
             name: z.string().optional(),
             labels: z.record(z.string()).optional(),
         },
-        async ({ id, name, labels }) => withToolError(async () => {
+        async ({ id, name, labels }, _extra) => withToolError(async () => {
             const response = await SshKeysService.putSshKeys({
                 id,
                 requestBody: { name, labels }
@@ -831,7 +831,7 @@ export function registerTools(server: McpServer) {
         "delete_ssh_key",
         "Delete an SSH key",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             await SshKeysService.deleteSshKeys({ id });
             return { content: [{ type: "text", text: "SSH key deleted successfully" }] };
         })
@@ -842,7 +842,7 @@ export function registerTools(server: McpServer) {
         "list_locations",
         "List all locations",
         {},
-        async () => withToolError(async () => {
+        async (_args?, _extra?) => withToolError(async () => {
             const response = await LocationsService.getLocations({});
             return { content: [{ type: "text", text: JSON.stringify(response.locations, null, 2) }] };
         })
@@ -852,7 +852,7 @@ export function registerTools(server: McpServer) {
         "list_images",
         "List all images",
         {},
-        async () => withToolError(async () => {
+        async (_args?, _extra?) => withToolError(async () => {
             const response = await ImagesService.getImages({});
             return { content: [{ type: "text", text: JSON.stringify(response.images, null, 2) }] };
         })
@@ -862,7 +862,7 @@ export function registerTools(server: McpServer) {
         "list_server_types",
         "List all server types",
         {},
-        async () => withToolError(async () => {
+        async (_args?, _extra?) => withToolError(async () => {
             const response = await ServerTypesService.getServerTypes({});
             return { content: [{ type: "text", text: JSON.stringify(response.server_types, null, 2) }] };
         })
@@ -872,7 +872,7 @@ export function registerTools(server: McpServer) {
         "list_load_balancer_types",
         "List all load balancer types (for create_load_balancer load_balancer_type)",
         {},
-        async () => withToolError(async () => {
+        async (_args?, _extra?) => withToolError(async () => {
             const response = await LoadBalancerTypesService.getLoadBalancerTypes({});
             return { content: [{ type: "text", text: JSON.stringify(response.load_balancer_types, null, 2) }] };
         })
@@ -882,7 +882,7 @@ export function registerTools(server: McpServer) {
         "list_datacenters",
         "List all datacenters (e.g. ash-dc1; where servers can be created)",
         {},
-        async () => withToolError(async () => {
+        async (_args?, _extra?) => withToolError(async () => {
             const response = await DatacentersService.getDatacenters({});
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -898,7 +898,7 @@ export function registerTools(server: McpServer) {
             page: z.number().optional(),
             per_page: z.number().optional(),
         },
-        async (args) => withToolError(async () => {
+        async (args, _extra) => withToolError(async () => {
             const response = await ActionsService.getActions(args as any);
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -908,7 +908,7 @@ export function registerTools(server: McpServer) {
         "get_action",
         "Get a single action by ID (e.g. to check progress or status after create/delete)",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             const response = await ActionsService.getActions1({ id });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -918,7 +918,7 @@ export function registerTools(server: McpServer) {
         "get_pricing",
         "Get all prices",
         {},
-        async () => withToolError(async () => {
+        async (_args?, _extra?) => withToolError(async () => {
             const response = await PricingService.getPricing();
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -929,7 +929,7 @@ export function registerTools(server: McpServer) {
         "list_placement_groups",
         "List all placement groups",
         {},
-        async () => withToolError(async () => {
+        async (_args?, _extra?) => withToolError(async () => {
             const response = await PlacementGroupsService.getPlacementGroups({});
             return { content: [{ type: "text", text: JSON.stringify(response.placement_groups, null, 2) }] };
         })
@@ -943,7 +943,7 @@ export function registerTools(server: McpServer) {
             type: z.enum(["spread"]),
             labels: z.record(z.string()).optional(),
         },
-        async (args) => withToolError(async () => {
+        async (args, _extra) => withToolError(async () => {
             const response = await PlacementGroupsService.postPlacementGroups({ requestBody: args as any });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -953,7 +953,7 @@ export function registerTools(server: McpServer) {
         "delete_placement_group",
         "Delete a placement group",
         { id: z.number() },
-        async ({ id }) => withToolError(async () => {
+        async ({ id }, _extra) => withToolError(async () => {
             await PlacementGroupsService.deletePlacementGroups({ id });
             return { content: [{ type: "text", text: "Placement Group deleted successfully" }] };
         })
@@ -967,7 +967,7 @@ export function registerTools(server: McpServer) {
             name: z.string().optional(),
             labels: z.record(z.string()).optional(),
         },
-        async ({ id, name, labels }) => withToolError(async () => {
+        async ({ id, name, labels }, _extra) => withToolError(async () => {
             const response = await PlacementGroupsService.putPlacementGroups({
                 id,
                 requestBody: { name, labels }

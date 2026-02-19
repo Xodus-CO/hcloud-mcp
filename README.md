@@ -24,14 +24,6 @@ npm install
 npm run build
 ```
 
-### From npm (after publishing)
-
-```bash
-npx hcloud-mcp
-```
-
-Configure your MCP client to run `npx hcloud-mcp` with `HCLOUD_TOKEN` in the environment.
-
 ## Configuration
 
 Add the server to your MCP client config. It uses MCP over **stdio** and requires `HCLOUD_TOKEN` in the environment.
@@ -52,7 +44,7 @@ Add the server to your MCP client config. It uses MCP over **stdio** and require
 }
 ```
 
-From another directory: use an absolute path for `args`, or `"command": "npx", "args": ["hcloud-mcp"]` after publishing.
+If you run from a different directory, use an absolute path for `args`, or use `npx hcloud-mcp` and set `"command": "npx", "args": ["hcloud-mcp"]` (after publishing).
 
 ## Tools
 
@@ -101,11 +93,10 @@ With the MCP client connected, you can ask the agent to run tools using natural 
 
 ## Development
 
-| File                    | Purpose                                                   |
-| ----------------------- | --------------------------------------------------------- |
-| `src/index.ts`          | Entry point, stdio transport, `HCLOUD_TOKEN` check        |
-| `src/mcp-server.ts`     | MCP server wrapper (tools registration, request handling) |
-| `src/register-tools.ts` | Tool definitions and Hetzner API calls                    |
+| File                    | Purpose                                                     |
+| ----------------------- | ----------------------------------------------------------- |
+| `src/index.ts`          | Entry point, stdio transport, `HCLOUD_TOKEN` check          |
+| `src/register-tools.ts` | Tool definitions and Hetzner API calls (uses SDK McpServer) |
 
 **Scripts:**
 

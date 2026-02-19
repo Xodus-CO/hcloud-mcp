@@ -1,4 +1,4 @@
-import { McpServer } from "./mcp-server.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { OpenAPI } from "hetzner-sdk-ts";
 import { registerTools } from "./register-tools.js";
@@ -11,10 +11,10 @@ if (!token) {
 
 OpenAPI.TOKEN = token;
 
-const server = new McpServer({
-    name: "hetzner-cloud",
-    version: "0.1.0",
-});
+const server = new McpServer(
+    { name: "hetzner-cloud", version: "0.1.0" },
+    { capabilities: { tools: {} } }
+);
 
 registerTools(server);
 
