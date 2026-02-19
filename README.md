@@ -15,6 +15,14 @@ Standalone **MCP (Model Context Protocol) server** for the [Hetzner Cloud API](h
 
 ## Installation
 
+### From npm (recommended)
+
+```bash
+npm install -g hcloud-mcp
+```
+
+Or use `npx` to run without a global install.
+
 ### From source
 
 ```bash
@@ -28,14 +36,14 @@ npm run build
 
 Add the server to your MCP client config. It uses MCP over **stdio** and requires `HCLOUD_TOKEN` in the environment.
 
-**Example** — `mcp.json` (or your client’s equivalent):
+**Example** — `mcp.json` (or your client’s equivalent) using the npm binary:
 
 ```json
 {
   "mcpServers": {
     "hetzner-cloud": {
-      "command": "node",
-      "args": ["dist/index.js"],
+      "command": "npx",
+      "args": ["hcloud-mcp"],
       "env": {
         "HCLOUD_TOKEN": "your_hetzner_cloud_api_token"
       }
@@ -44,24 +52,31 @@ Add the server to your MCP client config. It uses MCP over **stdio** and require
 }
 ```
 
-If you run from a different directory, use an absolute path for `args`, or use `npx hcloud-mcp` and set `"command": "npx", "args": ["hcloud-mcp"]` (after publishing).
+If you installed from source, use an **absolute path** to `run.js` in `args` so the server runs from the project directory (e.g. when the MCP client’s CWD is different, as in dev containers):
+
+```json
+"command": "node",
+"args": ["/path/to/hcloud-mcp/run.js"]
+```
+
+Replace `/path/to/hcloud-mcp` with your actual project path (e.g. `/home/<username>/Projects/hcloud-mcp`).
 
 ## Tools
 
 The server exposes Hetzner Cloud API operations as MCP tools:
 
-| Area                   | Tools                                                                                                                                                                                                                                                                           |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Servers**            | `list_servers`, `create_server`, `delete_server`, `update_server`, `change_server_type`; power: `power_on_server`, `power_off_server`, `reboot_server`, `shutdown_server`, `reset_server`; `attach_iso`, `detach_iso`; `attach_server_to_network`, `detach_server_from_network` |
-| **Load Balancers**     | `list_load_balancers`, `create_load_balancer`, `update_load_balancer`, `delete_load_balancer`; `add_load_balancer_target`, `remove_load_balancer_target`; `add_load_balancer_service`, `delete_load_balancer_service`; `list_load_balancer_types`                               |
-| **Networks**           | `list_networks`, `create_network`, `update_network`, `delete_network`; `add_network_subnet`, `delete_network_subnet`                                                                                                                                                            |
-| **Volumes**            | `list_volumes`, `create_volume`, `update_volume`, `delete_volume`; `attach_volume`, `detach_volume`                                                                                                                                                                             |
-| **Firewalls**          | `list_firewalls`, `create_firewall`, `update_firewall`, `delete_firewall`                                                                                                                                                                                                       |
-| **Floating IPs**       | `list_floating_ips`, `create_floating_ip`, `update_floating_ip`, `delete_floating_ip`; `assign_floating_ip`, `unassign_floating_ip`                                                                                                                                             |
-| **Primary IPs**        | `list_primary_ips`, `create_primary_ip`, `get_primary_ip`, `update_primary_ip`, `delete_primary_ip`; `assign_primary_ip`, `unassign_primary_ip` (server must be off)                                                                                                            |
-| **SSH Keys**           | `list_ssh_keys`, `create_ssh_key`, `update_ssh_key`, `delete_ssh_key`                                                                                                                                                                                                           |
-| **Placement Groups**   | `list_placement_groups`, `create_placement_group`, `update_placement_group`, `delete_placement_group`                                                                                                                                                                           |
-| **Metadata & actions** | `list_locations`, `list_images`, `list_server_types`, `list_load_balancer_types`, `list_datacenters`, `get_pricing`; `list_actions`, `get_action` (poll async operations)                                                                                                       |
+| Area                   | Tools                                                                                                                                                                                                                                                                                                  |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Servers**            | `list_servers`, `get_server`, `create_server`, `delete_server`, `update_server`, `change_server_type`; power: `power_on_server`, `power_off_server`, `reboot_server`, `shutdown_server`, `reset_server`; `attach_iso`, `detach_iso`; `attach_server_to_network`, `detach_server_from_network`          |
+| **Load Balancers**     | `list_load_balancers`, `get_load_balancer`, `create_load_balancer`, `update_load_balancer`, `delete_load_balancer`; `add_load_balancer_target`, `remove_load_balancer_target`; `add_load_balancer_service`, `update_load_balancer_service`, `delete_load_balancer_service`; `list_load_balancer_types` |
+| **Networks**           | `list_networks`, `get_network`, `create_network`, `update_network`, `delete_network`; `add_network_subnet`, `delete_network_subnet`                                                                                                                                                                    |
+| **Volumes**            | `list_volumes`, `get_volume`, `create_volume`, `update_volume`, `delete_volume`; `attach_volume`, `detach_volume`                                                                                                                                                                                      |
+| **Firewalls**          | `list_firewalls`, `get_firewall`, `create_firewall`, `update_firewall`, `delete_firewall`; `apply_firewall_to_resources`, `remove_firewall_from_resources`, `set_firewall_rules`                                                                                                                       |
+| **Floating IPs**       | `list_floating_ips`, `create_floating_ip`, `update_floating_ip`, `delete_floating_ip`; `assign_floating_ip`, `unassign_floating_ip`                                                                                                                                                                    |
+| **Primary IPs**        | `list_primary_ips`, `create_primary_ip`, `get_primary_ip`, `update_primary_ip`, `delete_primary_ip`; `assign_primary_ip`, `unassign_primary_ip` (server must be off)                                                                                                                                   |
+| **SSH Keys**           | `list_ssh_keys`, `create_ssh_key`, `update_ssh_key`, `delete_ssh_key`                                                                                                                                                                                                                                  |
+| **Placement Groups**   | `list_placement_groups`, `create_placement_group`, `update_placement_group`, `delete_placement_group`                                                                                                                                                                                                  |
+| **Metadata & actions** | `list_locations`, `list_images`, `list_server_types`, `list_load_balancer_types`, `list_datacenters`, `get_pricing`; `list_actions`, `get_action` (poll async operations)                                                                                                                              |
 
 > **Note:** Subnets (not networks) are scoped to a `network_zone` (e.g., `eu-central`). Each Subnet has a `network_zone`; all Subnets within a Network share the same `network_zone`. Servers must be created in locations that match the Subnet's `network_zone`, so resources in the Network are constrained by the shared subnet `network_zone`.
 
@@ -104,6 +119,9 @@ With the MCP client connected, you can ask the agent to run tools using natural 
 npm run build   # compile
 npm run start   # run (requires HCLOUD_TOKEN)
 npm run dev     # watch and recompile
+npm run test:api   # test list_* Hetzner API calls (requires HCLOUD_TOKEN)
+npm run test:mcp   # integration test: MCP client calls list_locations (requires HCLOUD_TOKEN)
+npm run audit:api  # verify create_* request body shapes (DRY_RUN=1, no resources created)
 ```
 
 ## License

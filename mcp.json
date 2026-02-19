@@ -2,7 +2,7 @@
   "mcpServers": {
     "hetzner-cloud": {
       "command": "node",
-      "args": ["dist/index.js"],
+      "args": ["/path/to/hcloud-mcp/run.js"],
       "env": {
         "HCLOUD_TOKEN": "your_hetzner_cloud_api_token"
       }

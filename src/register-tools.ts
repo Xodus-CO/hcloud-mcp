@@ -6,6 +6,7 @@ import {
     NetworksService,
     VolumesService,
     FirewallsService,
+    FirewallActionsService,
     FloatingIPsService,
     SshKeysService,
     ImagesService,
@@ -26,6 +27,22 @@ import {
     PrimaryIpActionsService,
 } from "hetzner-sdk-ts";
 import { z } from "zod";
+
+// Firewall rule: direction, protocol required; source_ips for 'in', destination_ips for 'out'; port for tcp/udp
+const firewallRuleSchema = z.object({
+    direction: z.enum(["in", "out"]),
+    protocol: z.enum(["tcp", "udp", "icmp", "esp", "gre"]),
+    source_ips: z.array(z.string()).optional(),
+    destination_ips: z.array(z.string()).optional(),
+    port: z.string().optional(),
+    description: z.string().nullable().optional(),
+});
+
+const firewallApplyToSchema = z.object({
+    type: z.enum(["server", "label_selector"]),
+    server: z.object({ id: z.number() }).optional(),
+    label_selector: z.object({ selector: z.string() }).optional(),
+});
 
 const formatError = (error: unknown) => {
     if (error instanceof Error) {
@@ -60,21 +77,59 @@ export function registerTools(server: McpServer) {
     );
 
     server.tool(
+        "get_server",
+        "Get a single server by ID",
+        { id: z.number() },
+        async ({ id }, _extra) => withToolError(async () => {
+            const response = await ServersService.getServers1({ id });
+            return { content: [{ type: "text", text: JSON.stringify(response.server, null, 2) }] };
+        })
+    );
+
+    server.tool(
         "create_server",
         "Create a new server",
         {
             name: z.string(),
             server_type: z.string(),
             image: z.string(),
-            location: z.string().optional(),
+            location: z.string().optional().describe("ID or name (omit if datacenter set)"),
+            datacenter: z.string().optional().describe("ID or name (omit if location set)"),
             start_after_create: z.boolean().optional(),
             ssh_keys: z.array(z.union([z.string(), z.number()])).optional().describe("List of SSH key names or IDs"),
             firewalls: z.array(z.object({ firewall: z.number() })).optional(),
             networks: z.array(z.number()).optional(),
+            placement_group: z.number().optional().describe("ID of placement group"),
+            public_net: z
+                .object({
+                    enable_ipv4: z.boolean().optional(),
+                    enable_ipv6: z.boolean().optional(),
+                    ipv4: z.number().nullable().optional(),
+                    ipv6: z.number().nullable().optional(),
+                })
+                .optional(),
+            user_data: z.string().optional().describe("Cloud-Init user data (max 32KiB)"),
+            volumes: z.array(z.number()).optional().describe("Volume IDs to attach at creation"),
             labels: z.record(z.string()).optional(),
         },
         async (args, _extra) => withToolError(async () => {
-            const response = await ServersService.postServers({ requestBody: args as any });
+            const requestBody = {
+                name: args.name,
+                server_type: args.server_type,
+                image: args.image,
+                location: args.location,
+                datacenter: args.datacenter,
+                start_after_create: args.start_after_create,
+                ssh_keys: args.ssh_keys?.map((k) => (typeof k === "number" ? String(k) : k)),
+                firewalls: args.firewalls,
+                networks: args.networks,
+                placement_group: args.placement_group,
+                public_net: args.public_net,
+                user_data: args.user_data,
+                volumes: args.volumes,
+                labels: args.labels,
+            };
+            const response = await ServersService.postServers({ requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -245,6 +300,16 @@ export function registerTools(server: McpServer) {
     );
 
     server.tool(
+        "get_load_balancer",
+        "Get a single load balancer by ID",
+        { id: z.number() },
+        async ({ id }, _extra) => withToolError(async () => {
+            const response = await LoadBalancersService.getLoadBalancers1({ id });
+            return { content: [{ type: "text", text: JSON.stringify(response.load_balancer, null, 2) }] };
+        })
+    );
+
+    server.tool(
         "create_load_balancer",
         "Create a new load balancer",
         {
@@ -256,7 +321,15 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async (args, _extra) => withToolError(async () => {
-            const response = await LoadBalancersService.postLoadBalancers({ requestBody: args as any });
+            const requestBody = {
+                name: args.name,
+                load_balancer_type: args.load_balancer_type,
+                location: args.location,
+                algorithm: args.algorithm,
+                network_zone: args.network_zone,
+                labels: args.labels,
+            };
+            const response = await LoadBalancersService.postLoadBalancers({ requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -359,9 +432,10 @@ export function registerTools(server: McpServer) {
             }).optional(),
         },
         async (args, _extra) => withToolError(async () => {
+            const { id, ...body } = args;
             const response = await LoadBalancerActionsService.postLoadBalancersActionsAddService({
-                id: args.id,
-                requestBody: args as any
+                id,
+                requestBody: body as Parameters<typeof LoadBalancerActionsService.postLoadBalancersActionsAddService>[0]["requestBody"]
             });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -383,6 +457,53 @@ export function registerTools(server: McpServer) {
         })
     );
 
+    server.tool(
+        "update_load_balancer_service",
+        "Update a load balancer service (listen_port identifies the service)",
+        {
+            id: z.number().describe("Load balancer ID"),
+            listen_port: z.number().describe("Listen port of the service to update"),
+            destination_port: z.number().optional(),
+            protocol: z.enum(["tcp", "http", "https"]).optional(),
+            proxyprotocol: z.boolean().optional(),
+            health_check: z
+                .object({
+                    protocol: z.enum(["tcp", "http"]),
+                    port: z.number(),
+                    interval: z.number(),
+                    timeout: z.number(),
+                    retries: z.number(),
+                    http: z
+                        .object({
+                            domain: z.string().nullable().optional(),
+                            path: z.string().optional(),
+                            response: z.string().optional(),
+                            status_codes: z.array(z.string()).optional(),
+                            tls: z.boolean().optional(),
+                        })
+                        .optional(),
+                })
+                .optional(),
+            http: z
+                .object({
+                    cookie_name: z.string().optional(),
+                    cookie_lifetime: z.number().optional(),
+                    certificates: z.array(z.number()).optional(),
+                    redirect_http: z.boolean().optional(),
+                    sticky_sessions: z.boolean().optional(),
+                })
+                .optional(),
+        },
+        async (args, _extra) => withToolError(async () => {
+            const { id, listen_port, ...body } = args;
+            const response = await LoadBalancerActionsService.postLoadBalancersActionsUpdateService({
+                id,
+                requestBody: { listen_port, ...body }
+            });
+            return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
+        })
+    );
+
     // --- Networks ---
     server.tool(
         "list_networks",
@@ -395,15 +516,37 @@ export function registerTools(server: McpServer) {
     );
 
     server.tool(
+        "get_network",
+        "Get a single network by ID",
+        { id: z.number() },
+        async ({ id }, _extra) => withToolError(async () => {
+            const response = await NetworksService.getNetworks1({ id });
+            return { content: [{ type: "text", text: JSON.stringify(response.network, null, 2) }] };
+        })
+    );
+
+    server.tool(
         "create_network",
         "Create a new network",
         {
             name: z.string(),
             ip_range: z.string(),
+            expose_routes_to_vswitch: z.boolean().optional(),
+            routes: z
+                .array(z.object({ destination: z.string(), gateway: z.string() }))
+                .optional()
+                .describe("Routes: destination (CIDR), gateway (IP)"),
             labels: z.record(z.string()).optional(),
         },
         async (args, _extra) => withToolError(async () => {
-            const response = await NetworksService.postNetworks({ requestBody: args as any });
+            const requestBody = {
+                name: args.name,
+                ip_range: args.ip_range,
+                expose_routes_to_vswitch: args.expose_routes_to_vswitch,
+                routes: args.routes,
+                labels: args.labels,
+            };
+            const response = await NetworksService.postNetworks({ requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -482,6 +625,16 @@ export function registerTools(server: McpServer) {
     );
 
     server.tool(
+        "get_volume",
+        "Get a single volume by ID",
+        { id: z.number() },
+        async ({ id }, _extra) => withToolError(async () => {
+            const response = await VolumesService.getVolumes1({ id });
+            return { content: [{ type: "text", text: JSON.stringify(response.volume, null, 2) }] };
+        })
+    );
+
+    server.tool(
         "create_volume",
         "Create a new volume",
         {
@@ -494,7 +647,16 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async (args, _extra) => withToolError(async () => {
-            const response = await VolumesService.postVolumes({ requestBody: args as any });
+            const requestBody = {
+                name: args.name,
+                size: args.size,
+                automount: args.automount,
+                format: args.format,
+                location: args.location,
+                server: args.server,
+                labels: args.labels,
+            };
+            const response = await VolumesService.postVolumes({ requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -565,15 +727,32 @@ export function registerTools(server: McpServer) {
     );
 
     server.tool(
+        "get_firewall",
+        "Get a single firewall by ID",
+        { id: z.number() },
+        async ({ id }, _extra) => withToolError(async () => {
+            const response = await FirewallsService.getFirewalls1({ id });
+            return { content: [{ type: "text", text: JSON.stringify(response.firewall, null, 2) }] };
+        })
+    );
+
+    server.tool(
         "create_firewall",
-        "Create a new firewall",
+        "Create a new firewall. Rules: direction 'in'|'out', protocol 'tcp'|'udp'|'icmp'|'esp'|'gre'; use source_ips for in, destination_ips for out (CIDRs, e.g. 0.0.0.0/0); port optional for tcp/udp. Optionally apply_to servers or label_selector at creation.",
         {
             name: z.string(),
-            rules: z.array(z.any()).optional(),
+            rules: z.array(firewallRuleSchema).optional(),
+            apply_to: z.array(firewallApplyToSchema).optional().describe("Apply firewall to these servers or label_selector after creation"),
             labels: z.record(z.string()).optional(),
         },
         async (args, _extra) => withToolError(async () => {
-            const response = await FirewallsService.postFirewalls({ requestBody: args as any });
+            const body = {
+                name: args.name,
+                rules: args.rules,
+                labels: args.labels,
+                apply_to: args.apply_to,
+            };
+            const response = await FirewallsService.postFirewalls({ requestBody: body });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -605,6 +784,48 @@ export function registerTools(server: McpServer) {
         })
     );
 
+    server.tool(
+        "apply_firewall_to_resources",
+        "Apply a firewall to servers or a label selector. Pass apply_to: [{ type: 'server', server: { id: 123 } }] or [{ type: 'label_selector', label_selector: { selector: 'env=web' } }].",
+        {
+            id: z.number().describe("Firewall ID"),
+            apply_to: z.array(firewallApplyToSchema),
+        },
+        async ({ id, apply_to }, _extra) => withToolError(async () => {
+            const response = await FirewallActionsService.postFirewallsActionsApplyToResources({ id, requestBody: { apply_to } });
+            return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
+        })
+    );
+
+    server.tool(
+        "remove_firewall_from_resources",
+        "Remove a firewall from servers. Pass remove_from: [{ type: 'server', server: { id: 123 } }].",
+        {
+            id: z.number().describe("Firewall ID"),
+            remove_from: z.array(z.object({
+                type: z.literal("server"),
+                server: z.object({ id: z.number() }),
+            })),
+        },
+        async ({ id, remove_from }, _extra) => withToolError(async () => {
+            const response = await FirewallActionsService.postFirewallsActionsRemoveFromResources({ id, requestBody: { remove_from } });
+            return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
+        })
+    );
+
+    server.tool(
+        "set_firewall_rules",
+        "Set rules on an existing firewall (overwrites all rules). Same rule format as create_firewall.",
+        {
+            id: z.number().describe("Firewall ID"),
+            rules: z.array(firewallRuleSchema),
+        },
+        async ({ id, rules }, _extra) => withToolError(async () => {
+            const response = await FirewallActionsService.postFirewallsActionsSetRules({ id, requestBody: { rules } });
+            return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
+        })
+    );
+
     // --- Floating IPs ---
     server.tool(
         "list_floating_ips",
@@ -627,7 +848,14 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async (args, _extra) => withToolError(async () => {
-            const response = await FloatingIPsService.postFloatingIps({ requestBody: args as any });
+            const requestBody = {
+                type: args.type,
+                home_location: args.home_location,
+                server: args.server,
+                description: args.description,
+                labels: args.labels,
+            };
+            const response = await FloatingIPsService.postFloatingIps({ requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -708,6 +936,11 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async (args, _extra) => withToolError(async () => {
+            const hasDatacenter = args.datacenter != null && args.datacenter !== "";
+            const hasAssignee = args.assignee_id != null;
+            if (hasDatacenter === hasAssignee) {
+                throw new Error("Provide exactly one of datacenter or assignee_id (mutually exclusive)");
+            }
             const requestBody = {
                 name: args.name,
                 type: args.type,
@@ -717,7 +950,7 @@ export function registerTools(server: McpServer) {
                 auto_delete: args.auto_delete,
                 labels: args.labels,
             };
-            const response = await PrimaryIPsService.postPrimaryIps({ requestBody: requestBody as any });
+            const response = await PrimaryIPsService.postPrimaryIps({ requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -805,7 +1038,12 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async (args, _extra) => withToolError(async () => {
-            const response = await SshKeysService.postSshKeys({ requestBody: args as any });
+            const requestBody = {
+                name: args.name,
+                public_key: args.public_key,
+                labels: args.labels,
+            };
+            const response = await SshKeysService.postSshKeys({ requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -894,12 +1132,24 @@ export function registerTools(server: McpServer) {
         {
             id: z.number().optional(),
             status: z.enum(["running", "success", "error"]).optional(),
-            sort: z.string().optional(),
+            sort: z
+                .enum([
+                    "id", "id:asc", "id:desc", "command", "command:asc", "command:desc",
+                    "status", "status:asc", "status:desc", "started", "started:asc", "started:desc",
+                    "finished", "finished:asc", "finished:desc",
+                ])
+                .optional(),
             page: z.number().optional(),
             per_page: z.number().optional(),
         },
         async (args, _extra) => withToolError(async () => {
-            const response = await ActionsService.getActions(args as any);
+            const response = await ActionsService.getActions({
+                id: args.id,
+                status: args.status,
+                sort: args.sort,
+                page: args.page,
+                perPage: args.per_page,
+            });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -944,7 +1194,12 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async (args, _extra) => withToolError(async () => {
-            const response = await PlacementGroupsService.postPlacementGroups({ requestBody: args as any });
+            const requestBody = {
+                name: args.name,
+                type: args.type,
+                labels: args.labels,
+            };
+            const response = await PlacementGroupsService.postPlacementGroups({ requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );

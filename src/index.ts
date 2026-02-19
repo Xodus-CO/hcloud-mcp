@@ -1,7 +1,16 @@
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
+import { config as loadEnv } from "dotenv";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { OpenAPI } from "hetzner-sdk-ts";
 import { registerTools } from "./register-tools.js";
+
+// Load .env from project root (parent of dist) so IDE-spawned server finds token when env isn't set
+if (!process.env.HCLOUD_TOKEN) {
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    loadEnv({ path: join(__dirname, "..", ".env") });
+}
 
 const token = process.env.HCLOUD_TOKEN;
 if (!token) {
