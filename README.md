@@ -63,7 +63,7 @@ The server exposes Hetzner Cloud API operations as MCP tools:
 | **Placement Groups**   | `list_placement_groups`, `create_placement_group`, `update_placement_group`, `delete_placement_group`                                                                                                                                                                           |
 | **Metadata & actions** | `list_locations`, `list_images`, `list_server_types`, `list_load_balancer_types`, `list_datacenters`, `get_pricing`; `list_actions`, `get_action` (poll async operations)                                                                                                       |
 
-> **Note:** Networks are zone-scoped (e.g. `eu-central`). Subnets and servers must be in the same zone.
+> **Note:** Subnets (not networks) are scoped to a `network_zone` (e.g., `eu-central`). Each Subnet has a `network_zone`; all Subnets within a Network share the same `network_zone`. Servers must be created in locations that match the Subnet's `network_zone`, so resources in the Network are constrained by the shared subnet `network_zone`.
 
 ## Usage examples
 
