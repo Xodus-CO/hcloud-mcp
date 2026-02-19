@@ -1,38 +1,42 @@
-# hcloud-mcp
+# HCloud MCP
 
 Standalone **MCP (Model Context Protocol) server** for the [Hetzner Cloud API](https://docs.hetzner.cloud/). Use it with any MCP client: Cursor, Claude Desktop, CLI tools, [smithery.ai](https://smithery.ai), or custom agents.
 
-[Get Hetzner Cloud](https://hetzner.cloud/?ref=IAYKetqPnlq9) — new signups get €20 credit.
+- **Repository:** [github.com/Xodus-CO/hcloud-mcp](https://github.com/Xodus-CO/hcloud-mcp)
+- **Cursor Plugin:** [github.com/Xodus-CO/hetzner-mcp](https://github.com/Xodus-CO/hetzner-mcp) — install from the Cursor Plugin marketplace.
+- **Hetzner Cloud:** [Get started](https://hetzner.cloud/?ref=IAYKetqPnlq9) — new signups get €20 credit.
+
+---
 
 ## Requirements
 
 - Node.js 18+
-- A [Hetzner Cloud](https://console.hetzner.cloud/) API token (project → Security → API Tokens). Set it as `HCLOUD_TOKEN` in the environment or in your MCP client config.
+- A Hetzner Cloud API token. [Generate one](https://docs.hetzner.com/cloud/api/getting-started/generating-api-token) in the console (project → Security → API Tokens). Set it as `HCLOUD_TOKEN` in the environment or in your MCP client config.
 
 ## Installation
 
-### From source (clone this repo)
+### From source
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Xodus-CO/hcloud-mcp
 cd hcloud-mcp
 npm install
 npm run build
 ```
 
-### After publishing to npm (optional)
+### From npm (after publishing)
 
 ```bash
 npx hcloud-mcp
 ```
 
-(Configure your MCP client to run `npx hcloud-mcp` with `HCLOUD_TOKEN` in env.)
+Configure your MCP client to run `npx hcloud-mcp` with `HCLOUD_TOKEN` in the environment.
 
 ## Configuration
 
-Add the server to your MCP client configuration. The server speaks MCP over **stdio** and expects `HCLOUD_TOKEN` in the environment.
+Add the server to your MCP client config. It uses MCP over **stdio** and requires `HCLOUD_TOKEN` in the environment.
 
-Example (`mcp.json` or your client’s equivalent):
+**Example** — `mcp.json` (or your client’s equivalent):
 
 ```json
 {
@@ -48,11 +52,11 @@ Example (`mcp.json` or your client’s equivalent):
 }
 ```
 
-If you run from a different directory, use an absolute path for `args`, or use `npx hcloud-mcp` and set `"command": "npx", "args": ["hcloud-mcp"]` (after publishing).
+From another directory: use an absolute path for `args`, or `"command": "npx", "args": ["hcloud-mcp"]` after publishing.
 
 ## Tools
 
-The server exposes Hetzner Cloud API operations as MCP tools.
+The server exposes Hetzner Cloud API operations as MCP tools:
 
 | Area                   | Tools                                                                                                                                                                                                                                                                           |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -67,24 +71,43 @@ The server exposes Hetzner Cloud API operations as MCP tools.
 | **Placement Groups**   | `list_placement_groups`, `create_placement_group`, `update_placement_group`, `delete_placement_group`                                                                                                                                                                           |
 | **Metadata & actions** | `list_locations`, `list_images`, `list_server_types`, `list_load_balancer_types`, `list_datacenters`, `get_pricing`; `list_actions`, `get_action` (poll async operations)                                                                                                       |
 
-Networks are zone-scoped (e.g. eu-central); subnets and servers must be in the same zone.
+> **Note:** Networks are zone-scoped (e.g. `eu-central`). Subnets and servers must be in the same zone.
 
 ## Usage examples
 
-Once your MCP client is connected, you can ask the agent to run tools, for example:
+With the MCP client connected, you can ask the agent to run tools using natural language.
 
-- "List my Hetzner servers"
-- "Create a cx22 server with Ubuntu 24.04 in nbg1"
-- "Create a 10GB volume and attach it to server web-01"
-- "List load balancer types"
-- "Create a private network 10.0.0.0/16 in eu-central, add a subnet, then create two servers in that zone and attach them"
-- "Get status of action 12345"
+### Simple
+
+- _List my servers in Nuremberg_
+- _Create a cx22 server with Ubuntu 24.04_
+- _Create a cx22 server with Ubuntu 24.04 using my SSH key 'macbook'_
+- _Attach a 10GB volume to web-01_
+- _Set up a load balancer for my web servers_
+- _List load balancer types_
+- _Show current pricing for cpx31 servers_
+- _Get status of action 12345_
+
+### Complex
+
+- _Create a private network 10.0.0.0/16 in eu-central, add a subnet, then create two servers in that zone (e.g. fsn1 and nbg1) and attach them_
+- _Create a firewall for SSH and HTTP, attach to my web servers, then create a load balancer and add those servers as targets_
+- _List running actions and get status of action 12345_
+- _Create a Primary IP in ash-dc1, power off web-01, assign the IP, power back on_
+- _Create a 20GB volume and a cx22 server in nbg1, attach the volume to the server, and show me the device path_
+- _Power off server 12345, change its type to cpx31, then power it back on_
+- _Add server web-02 as a target to my load balancer prod-lb_
+- _Tear down: detach/delete volumes, delete LB and firewall, unassign/delete floating IPs, delete servers web-01 and web-02_
 
 ## Development
 
-- `src/index.ts` — Entry point, stdio transport, `HCLOUD_TOKEN` check.
-- `src/mcp-server.ts` — MCP server wrapper (tools registration, request handling).
-- `src/register-tools.ts` — All tool definitions and Hetzner API calls.
+| File                    | Purpose                                                   |
+| ----------------------- | --------------------------------------------------------- |
+| `src/index.ts`          | Entry point, stdio transport, `HCLOUD_TOKEN` check        |
+| `src/mcp-server.ts`     | MCP server wrapper (tools registration, request handling) |
+| `src/register-tools.ts` | Tool definitions and Hetzner API calls                    |
+
+**Scripts:**
 
 ```bash
 npm run build   # compile

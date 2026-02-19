@@ -1,0 +1,21 @@
+# Source (publish dist/ only)
+src/
+tsconfig.json
+
+# Git and env
+.git/
+.gitignore
+.env
+.env.*
+
+# Logs and local config
+*.log
+mcp.json
+
+# IDE and editor
+.cursor/
+.vscode/
+.editorconfig
+
+# Lockfile (optional; omit for smaller package)
+package-lock.json
