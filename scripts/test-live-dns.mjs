@@ -137,9 +137,22 @@ try {
     console.error(`FAIL ${e.message}`);
 } finally {
     await client.close().catch(() => {});
-    // Safety net: delete the test zone directly if it still exists.
-    const r = await fetch(`https://api.hetzner.cloud/v1/zones/${encodeURIComponent(ZONE)}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-    if (r.status !== 404) console.log(`safety-net delete of ${ZONE}: HTTP ${r.status}`);
+    // Safety net: delete the test zone only if it still exists AND carries this run's label,
+    // so a pre-existing zone (DNS_TEST_ZONE override or name collision) is never touched.
+    const url = `https://api.hetzner.cloud/v1/zones/${encodeURIComponent(ZONE)}`;
+    const headers = { Authorization: `Bearer ${token}` };
+    const lookup = await fetch(url, { headers });
+    if (lookup.ok) {
+        const { zone } = await lookup.json();
+        if (zone?.labels?.["hcloud-mcp-test"] === runId) {
+            const r = await fetch(url, { method: "DELETE", headers });
+            console.log(`safety-net delete of ${ZONE}: HTTP ${r.status}`);
+        } else {
+            console.log(`safety-net skipped for ${ZONE}: not created by this run`);
+        }
+    } else if (lookup.status !== 404) {
+        console.log(`safety-net lookup of ${ZONE}: HTTP ${lookup.status}`);
+    }
     console.log(`\n${passed} steps passed${failed ? ", 1 failed" : ""}`);
     process.exit(failed ? 1 : 0);
 }
