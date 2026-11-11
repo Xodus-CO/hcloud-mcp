@@ -7,7 +7,6 @@ import "dotenv/config";
 import {
     LocationsService,
     ServerTypesService,
-    DatacentersService,
     OpenAPI,
 } from "hetzner-sdk-ts";
 
@@ -35,13 +34,6 @@ async function run() {
         console.error("list_server_types failed:", e.message || e);
     }
 
-    console.log("Testing list_datacenters...");
-    try {
-        const r = await DatacentersService.getDatacenters({});
-        console.log("list_datacenters OK, datacenters:", r.datacenters?.length ?? 0);
-    } catch (e) {
-        console.error("list_datacenters failed:", e.message || e);
-    }
 }
 
 run();

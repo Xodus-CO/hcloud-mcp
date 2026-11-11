@@ -1,6 +1,6 @@
 {
   "name": "hcloud-mcp",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Standalone MCP server for Hetzner Cloud API — use with Cursor, Claude Desktop, CLI, or any MCP client",
   "type": "module",
   "main": "dist/index.js",
@@ -14,6 +14,7 @@
     "dev": "tsc --watch",
     "test:api": "node scripts/test-list-api.mjs",
     "test:mcp": "node scripts/test-mcp-list.mjs",
+    "test:live": "node scripts/test-live-lifecycle.mjs",
     "audit:api": "cross-env DRY_RUN=1 node scripts/audit-api-shapes.mjs"
   },
   "keywords": [
