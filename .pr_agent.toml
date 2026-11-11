@@ -16,7 +16,7 @@ Project: hcloud-mcp, a TypeScript MCP server (stdio) wrapping the Hetzner Cloud 
 - Destructive tools (delete_*, rebuild_server, import_zonefile, rollback_storage_box_snapshot, disable_server_backups) must say so in their description. Missing warnings are worth flagging.
 - Live tests in scripts/test-live-*.mjs create real resources by design. Check that their cleanup only touches resources carrying the current run's hcloud-mcp-test=<runId> label; that is the invariant that matters. Do not ask for mocks or unit tests instead.
 - Before claiming a missing import, guard or validation, consider that it may be outside the diff hunk. Flag it only if the hunk shows the gap.
-- If a PR comment rebuts a finding with spec or live-test evidence, do not raise that finding again unless new commits change that code.
+- If a PR comment rebuts a finding, check its evidence yourself against the spec or the code. If the evidence holds, do not raise that finding again unless new commits change that code. If it doesn't hold, re-raise the finding and say exactly what the rebuttal got wrong. Never drop a security finding on an assertion alone.
 - Linked issues marked as deferred or follow-up are not part of the PR's scope.
 """
 
@@ -26,7 +26,7 @@ Project: hcloud-mcp, a TypeScript MCP server for the Hetzner Cloud API and the S
 - Suggest only correctness, security, secret-handling or data-loss fixes. No style, comments, docstrings, logging or refactors.
 - Check API-shape suggestions against https://docs.hetzner.cloud/cloud.spec.json and https://docs.hetzner.cloud/hetzner.spec.json. Do not add pagination to endpoints the spec doesn't paginate.
 - Do not suggest replacing src/hcloud-api.ts calls with hetzner-sdk-ts, or tightening casts that work around the SDK's stale types.
-- Do not repeat a suggestion that a PR comment already rejected with evidence.
+- Do not repeat a suggestion that a PR comment rejected, if that comment's evidence holds up against the spec or the code.
 """
 
 [ignore]
