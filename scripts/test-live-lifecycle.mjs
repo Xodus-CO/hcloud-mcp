@@ -3,7 +3,7 @@
  * create → modify → teardown cycle against the real Hetzner API.
  *
  * COSTS MONEY (a few cents; Hetzner bills hourly). Creates resources labeled
- * hcloud-mcp-test=1 and always cleans them up via a REST safety net in `finally`.
+ * hcloud-mcp-test=<run-id> and always cleans up only that run's resources via a REST safety net in `finally`.
  *
  * Usage: HCLOUD_TOKEN=... node scripts/test-live-lifecycle.mjs   (npm run build first)
  */
@@ -14,8 +14,9 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 const token = process.env.HCLOUD_TOKEN;
 if (!token) { console.error("HCLOUD_TOKEN required"); process.exit(1); }
 
-const LABEL = { "hcloud-mcp-test": "1" };
-const suffix = Date.now().toString(36);
+const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+// Unique per run so the safety-net cleanup only ever touches this run's resources.
+const LABEL = { "hcloud-mcp-test": suffix };
 const results = [];
 const ok = (step, detail = "") => { results.push(["ok", step]); console.log(`ok   ${step}${detail ? " — " + detail : ""}`); };
 
@@ -54,7 +55,7 @@ async function rest(method, path, body) {
 }
 
 async function safetyNetCleanup() {
-    const sel = "label_selector=hcloud-mcp-test%3D1";
+    const sel = `label_selector=${encodeURIComponent(`hcloud-mcp-test=${suffix}`)}`;
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     for (const lb of (await rest("GET", `/load_balancers?${sel}`)).load_balancers ?? []) await rest("DELETE", `/load_balancers/${lb.id}`);
     for (const v of (await rest("GET", `/volumes?${sel}`)).volumes ?? []) { if (v.server) { await rest("POST", `/volumes/${v.id}/actions/detach`); await sleep(5000); } await rest("DELETE", `/volumes/${v.id}`); }
@@ -180,7 +181,7 @@ try {
 } finally {
     await client.close().catch(() => {});
     const left = await safetyNetCleanup();
-    console.log(left.length ? `LEFTOVER RESOURCES: ${left.join(" ")}` : "cleanup verified: no hcloud-mcp-test=1 resources remain");
+    console.log(left.length ? `LEFTOVER RESOURCES: ${left.join(" ")}` : `cleanup verified: no hcloud-mcp-test=${suffix} resources remain`);
     console.log(`\n${results.length} steps passed${failed ? ", 1 failed" : ""}`);
     process.exit(failed || left.length ? 1 : 0);
 }

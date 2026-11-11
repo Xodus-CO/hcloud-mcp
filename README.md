@@ -154,7 +154,7 @@ npm run dev     # watch and recompile
 npm run test:api   # test list_* Hetzner API calls (requires HCLOUD_TOKEN)
 npm run test:mcp   # integration test: MCP client calls list_locations (requires HCLOUD_TOKEN)
 npm run audit:api  # verify create_* request body shapes (DRY_RUN=1, no resources created)
-npm run test:live  # full create→teardown cycle via MCP (COSTS a few cents; resources labeled hcloud-mcp-test=1, auto-cleaned)
+npm run test:live  # full create→teardown cycle via MCP (COSTS a few cents; resources get a unique per-run hcloud-mcp-test label, auto-cleaned)
 ```
 
 ## License

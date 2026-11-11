@@ -13,7 +13,6 @@ import {
     LocationsService,
     ServerTypesService,
     PlacementGroupsService,
-    CertificatesService,
     PrimaryIPsService,
     ServerActionsService,
     VolumeActionsService,
@@ -1052,7 +1051,7 @@ export function registerTools(server: McpServer) {
 
     server.tool(
         "create_ssh_key",
-        "Create a new SSH key",
+        "Create a new SSH key (public_key is trimmed; the API rejects leading whitespace)",
         {
             name: z.string(),
             public_key: z.string(),
@@ -1061,7 +1060,8 @@ export function registerTools(server: McpServer) {
         async (args, _extra) => withToolError(async () => {
             const requestBody = {
                 name: args.name,
-                public_key: args.public_key,
+                // API rejects leading whitespace since 2026-04-22; pasted keys often carry it.
+                public_key: args.public_key.trim(),
                 labels: args.labels,
             };
             const response = await SshKeysService.postSshKeys({ requestBody });
