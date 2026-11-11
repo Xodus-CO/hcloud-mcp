@@ -1,9 +1,9 @@
 // Server rescue / console / root password actions (#17) and server + load balancer
-// metrics (#19), implemented with the direct client in hcloud-api.ts.
+// metrics (#19).
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { hcloudRequest } from "./hcloud-api.js";
-import { json, withToolError } from "./tool-helpers.js";
+import { ADDITIVE, ADDITIVE_IDEMPOTENT, DESTRUCTIVE, READ_ONLY, json, withToolError } from "./tool-helpers.js";
 
 // Hetzner keeps metrics for 30 days.
 const MAX_LAST_MINUTES = 30 * 24 * 60;
@@ -78,61 +78,79 @@ async function getMetrics(path: string, type: string[], args: TimeArgs & { step?
 }
 
 export function registerServerOpsTools(server: McpServer) {
-    server.tool(
+    server.registerTool(
         "enable_rescue",
-        "Enable the Hetzner Rescue System (minimal Linux for repair/reinstall) on a server. Does NOT reboot: rescue only takes effect at the next boot, so follow with reset_server (or reboot) once the Action succeeds. Rescue is disabled automatically when the server first boots into it, or if it is not used within 60 minutes. Returns an Action and root_password for the rescue system (valid once the Action succeeds; treat as a secret). Pass ssh_keys to log in by key instead",
         {
-            id: z.number().describe("Server ID"),
-            type: z.enum(["linux64"]).optional().describe("Rescue system type; only linux64 exists (default)"),
-            ssh_keys: z.array(z.number()).optional().describe("SSH key IDs to inject into the rescue system"),
+            description: "Enable the Hetzner Rescue System (minimal Linux for repair/reinstall) on a server. Does NOT reboot: rescue only takes effect at the next boot, so follow with reset_server (or reboot) once the Action succeeds. Rescue is disabled automatically when the server first boots into it, or if it is not used within 60 minutes. Returns an Action and root_password for the rescue system (valid once the Action succeeds; treat as a secret). Pass ssh_keys to log in by key instead",
+            inputSchema: {
+                id: z.number().describe("Server ID"),
+                type: z.enum(["linux64"]).optional().describe("Rescue system type; only linux64 exists (default)"),
+                ssh_keys: z.array(z.number()).optional().describe("SSH key IDs to inject into the rescue system"),
+            },
+            annotations: ADDITIVE,
         },
         async ({ id, type, ssh_keys }) => withToolError(async () =>
             json(await hcloudRequest("POST", `/servers/${id}/actions/enable_rescue`, { body: { type, ssh_keys } }))),
     );
 
-    server.tool(
+    server.registerTool(
         "disable_rescue",
-        "Disable the Hetzner Rescue System so the server boots from its own disk next time. Does NOT reboot the server. Usually not needed: rescue disables itself after the first boot into it or after 60 minutes unused. Returns an Action",
-        { id: z.number().describe("Server ID") },
+        {
+            description: "Disable the Hetzner Rescue System so the server boots from its own disk next time. Does NOT reboot the server. Usually not needed: rescue disables itself after the first boot into it or after 60 minutes unused. Returns an Action",
+            inputSchema: { id: z.number().describe("Server ID") },
+            annotations: ADDITIVE_IDEMPOTENT,
+        },
         async ({ id }) => withToolError(async () =>
             json(await hcloudRequest("POST", `/servers/${id}/actions/disable_rescue`))),
     );
 
-    server.tool(
+    server.registerTool(
         "reset_root_password",
-        "Generate and set a new root password on a server. Only works on Linux servers that are running (status 'running') AND have the qemu guest agent running; stock images may not ship it, in which case the API accepts the request but the Action ends in error. Returns an Action plus root_password, which is only in effect once the Action succeeds (poll get_action; treat it as a secret). Fallback if it fails: enable_rescue + reset_server, then change the password from the rescue system",
-        { id: z.number().describe("Server ID") },
+        {
+            description: "Generate and set a new root password on a server. Only works on Linux servers that are running (status 'running') AND have the qemu guest agent running; stock images may not ship it, in which case the API accepts the request but the Action ends in error. Returns an Action plus root_password, which is only in effect once the Action succeeds (poll get_action; treat it as a secret). Fallback if it fails: enable_rescue + reset_server, then change the password from the rescue system",
+            inputSchema: { id: z.number().describe("Server ID") },
+            annotations: DESTRUCTIVE,
+        },
         async ({ id }) => withToolError(async () =>
             json(await hcloudRequest("POST", `/servers/${id}/actions/reset_password`))),
     );
 
-    server.tool(
+    server.registerTool(
         "request_console",
-        "Request VNC-over-websocket console credentials (keyboard, monitor, mouse) for a server. Returns wss_url (contains a token) and a VNC password, plus an Action. The URL must be used to connect within 1 minute; request a new one after that. An already-open connection is not cut off by that timeout. Treat both values as secrets",
-        { id: z.number().describe("Server ID") },
+        {
+            description: "Request VNC-over-websocket console credentials (keyboard, monitor, mouse) for a server. Returns wss_url (contains a token) and a VNC password, plus an Action. The URL must be used to connect within 1 minute; request a new one after that. An already-open connection is not cut off by that timeout. Treat both values as secrets",
+            inputSchema: { id: z.number().describe("Server ID") },
+            annotations: ADDITIVE,
+        },
         async ({ id }) => withToolError(async () =>
             json(await hcloudRequest("POST", `/servers/${id}/actions/request_console`))),
     );
 
-    server.tool(
+    server.registerTool(
         "get_server_metrics",
-        "Get server metrics (last 30 days only). Output starts with a per-series summary {points,min,avg,max,last}, then the raw time_series unless include_values=false. Series: cpu → cpu (percent, per vCPU: 100 = one full vCPU, so divide by vCPU count for overall usage); disk → disk.0.iops.read/write (iop/s), disk.0.bandwidth.read/write (bytes/s); network → network.0.pps.in/out (packets/s), network.0.bandwidth.in/out (bytes/s) on the public interface. Time range: pass start+end (ISO-8601), or omit both and use last_minutes (default 60)",
         {
-            id: z.number().describe("Server ID"),
-            type: z.array(z.enum(["cpu", "disk", "network"])).min(1).describe("Metric types, e.g. [\"cpu\"] or [\"cpu\",\"network\"]"),
-            ...timeParams,
+            description: "Get server metrics (last 30 days only). Output starts with a per-series summary {points,min,avg,max,last}, then the raw time_series unless include_values=false. Series: cpu → cpu (percent, per vCPU: 100 = one full vCPU, so divide by vCPU count for overall usage); disk → disk.0.iops.read/write (iop/s), disk.0.bandwidth.read/write (bytes/s); network → network.0.pps.in/out (packets/s), network.0.bandwidth.in/out (bytes/s) on the public interface. Time range: pass start+end (ISO-8601), or omit both and use last_minutes (default 60)",
+            inputSchema: {
+                id: z.number().describe("Server ID"),
+                type: z.array(z.enum(["cpu", "disk", "network"])).min(1).describe("Metric types, e.g. [\"cpu\"] or [\"cpu\",\"network\"]"),
+                ...timeParams,
+            },
+            annotations: READ_ONLY,
         },
         async ({ id, type, ...rest }) => withToolError(() => getMetrics(`/servers/${id}/metrics`, type, rest)),
     );
 
-    server.tool(
+    server.registerTool(
         "get_load_balancer_metrics",
-        "Get load balancer metrics (last 30 days only). Output starts with a per-series summary {points,min,avg,max,last}, then the raw time_series unless include_values=false. Series: open_connections (number), connections_per_second, requests_per_second, bandwidth → bandwidth.in/bandwidth.out (bytes/s). Time range: pass start+end (ISO-8601), or omit both and use last_minutes (default 60)",
         {
-            id: z.number().describe("Load balancer ID"),
-            type: z.array(z.enum(["open_connections", "connections_per_second", "requests_per_second", "bandwidth"])).min(1)
-                .describe("Metric types, e.g. [\"requests_per_second\",\"bandwidth\"]"),
-            ...timeParams,
+            description: "Get load balancer metrics (last 30 days only). Output starts with a per-series summary {points,min,avg,max,last}, then the raw time_series unless include_values=false. Series: open_connections (number), connections_per_second, requests_per_second, bandwidth → bandwidth.in/bandwidth.out (bytes/s). Time range: pass start+end (ISO-8601), or omit both and use last_minutes (default 60)",
+            inputSchema: {
+                id: z.number().describe("Load balancer ID"),
+                type: z.array(z.enum(["open_connections", "connections_per_second", "requests_per_second", "bandwidth"])).min(1)
+                    .describe("Metric types, e.g. [\"requests_per_second\",\"bandwidth\"]"),
+                ...timeParams,
+            },
+            annotations: READ_ONLY,
         },
         async ({ id, type, ...rest }) => withToolError(() => getMetrics(`/load_balancers/${id}/metrics`, type, rest)),
     );

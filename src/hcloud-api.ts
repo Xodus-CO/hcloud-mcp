@@ -1,6 +1,5 @@
-// Minimal typed client for Hetzner Cloud API endpoints that hetzner-sdk-ts does not
-// cover (e.g. DNS zones / RRSets). Uses the same token as the SDK.
-import { OpenAPI } from "hetzner-sdk-ts";
+// Minimal fetch client for the Hetzner Cloud API (and the Hetzner API for Storage Boxes).
+// Reads the project token from HCLOUD_TOKEN (index.ts loads .env / exits if unset).
 
 // Cloud API (servers, networks, DNS, ...) and the Hetzner API (Storage Boxes) accept the same project token.
 export const CLOUD_API = "https://api.hetzner.cloud/v1";
@@ -16,12 +15,14 @@ export class HcloudApiError extends Error {
         message: string,
         public details?: unknown,
     ) {
-        super(`${code} (${status}): ${message}${details ? ` ${JSON.stringify(details)}` : ""}`);
+        // The API sends `details: {}` on most errors; only append details that carry something.
+        const hasDetails = details != null && (typeof details !== "object" || Object.keys(details).length > 0);
+        super(`${code} (${status}): ${message}${hasDetails ? ` ${JSON.stringify(details)}` : ""}`);
     }
 }
 
 function token(): string {
-    const t = (typeof OpenAPI.TOKEN === "string" ? OpenAPI.TOKEN : undefined) ?? process.env.HCLOUD_TOKEN;
+    const t = process.env.HCLOUD_TOKEN;
     if (!t) throw new Error("HCLOUD_TOKEN is not set");
     return t;
 }
@@ -48,7 +49,14 @@ export async function hcloudRequest<T = any>(
     });
     if (res.status === 204) return {} as T;
     const text = await res.text();
-    const data = text ? JSON.parse(text) : {};
+    let data: any = {};
+    try {
+        data = text ? JSON.parse(text) : {};
+    } catch (e) {
+        // Non-JSON body (e.g. an HTML 502 from a proxy): report the HTTP status instead.
+        if (!res.ok) throw new HcloudApiError(res.status, "http_error", res.statusText);
+        throw e;
+    }
     if (!res.ok) {
         const err = data?.error ?? {};
         throw new HcloudApiError(res.status, err.code ?? "http_error", err.message ?? res.statusText, err.details);
