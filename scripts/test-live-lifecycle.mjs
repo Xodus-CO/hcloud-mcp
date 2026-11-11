@@ -191,7 +191,17 @@ try {
     ok("floating IP assign/unassign/delete");
 
     // --- Load balancer: delete returns Action ---
-    const lbResp = await call("create_load_balancer", { name: `t-lb-${suffix}`, load_balancer_type: "lb11", location: best.location, labels: LABEL });
+    // LB created with an existing Primary IPv4 (#3), plus a service and target in the same call
+    const lbPip = (await call("create_primary_ip", { name: `t-lbpip-${suffix}`, type: "ipv4", location: best.location, auto_delete: false, labels: LABEL })).primary_ip;
+    const lbResp = await call("create_load_balancer", {
+        name: `t-lb-${suffix}`, load_balancer_type: "lb11", location: best.location, labels: LABEL,
+        public_net: { ipv4: lbPip.id },
+        services: [{ protocol: "tcp", listen_port: 8080, destination_port: 8080, proxyprotocol: false }],
+        targets: [{ type: "server", server: { id: srv.id } }],
+    });
+    if (lbResp.load_balancer.public_net.ipv4.ip !== lbPip.ip) throw new Error(`LB ipv4 ${lbResp.load_balancer.public_net.ipv4.ip} != primary IP ${lbPip.ip}`);
+    if (!lbResp.load_balancer.services?.some((sv) => sv.listen_port === 8080) || !lbResp.load_balancer.targets?.some((tg) => tg.server?.id === srv.id)) throw new Error("LB services/targets not created");
+    ok("create_load_balancer with existing Primary IP + services + targets", `ipv4 ${lbPip.ip}`);
     await waitActions(lbResp, "create_lb");
     const lbId = lbResp.load_balancer.id;
     await waitActions(await call("add_load_balancer_service", {
@@ -210,6 +220,13 @@ try {
     if (!delLb?.action?.id) throw new Error(`delete_load_balancer returned no action: ${JSON.stringify(delLb).slice(0, 200)}`);
     await waitActions(delLb, "delete_lb");
     ok("delete_load_balancer returns Action", `command=${delLb.action.command}`);
+    const pipAfter = await call("get_primary_ip", { id: lbPip.id });
+    const pa = pipAfter.primary_ip ?? pipAfter;
+    if (pa.assignee_id != null || pa.assignee_type !== "unassigned") {
+        throw new Error(`LB Primary IP still assigned after LB delete: ${pa.assignee_type}/${pa.assignee_id}`);
+    }
+    await call("delete_primary_ip", { id: lbPip.id });
+    ok("LB Primary IP released (unassigned) after LB delete, then deleted");
 
     // --- Teardown in skill order ---
     await waitActions(await call("delete_server", { id: srv.id }), "delete_server");
