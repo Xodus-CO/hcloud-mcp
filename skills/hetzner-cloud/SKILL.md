@@ -1,0 +1,50 @@
+---
+name: hetzner-cloud
+description: Use when provisioning, changing, or tearing down Hetzner Cloud resources through the hcloud-mcp tools (servers, networks, firewalls, load balancers, volumes, floating or primary IPs), or when a Hetzner call fails with must_be_unassigned, locked, invalid_input, or a 410.
+---
+
+# Hetzner Cloud via hcloud-mcp
+
+## Overview
+Every mutating tool returns an **Action**, and Actions run asynchronously. Most failures come from starting the next step before the previous Action has finished, or from doing steps in the wrong order. Wait on each dependency, and follow the orders below.
+
+## Waiting on an Action
+After any create, delete, attach, detach, assign, unassign, or power call, read `action.id` from the response. Then call `get_action {id}` until `status` is `success`. If it is `error`, stop and report `action.error`. Only start a step that depends on that resource after `success`. Steps that don't depend on each other can run without waiting. If the response has no `action`, the call finished synchronously. `create_network` is one of these. If it has `actions` or `next_actions`, wait on each one.
+
+## Argument shapes
+| Tool | Shape |
+|---|---|
+| `create_server` | `location` such as `fsn1`. Never `datacenter`, which was removed. `ssh_keys: ["name" or id]`, `networks: [netId]`, `firewalls: [{"firewall": fwId}]`, `volumes: [volId]` |
+| `create_primary_ip` | Exactly one of `location` or `assignee_id` |
+| `add_network_subnet` | `type: "cloud"`. `network_zone` must match the server's location: `eu-central` for fsn1, nbg1 and hel1; `us-east` for ash; `us-west` for hil; `ap-southeast` for sin |
+| firewall rules | `{direction, protocol, port, source_ips}`. CIDRs must have zero host bits: `203.0.113.57/32`, not `/24`. If the user wrote `x.y.z.57/24`, ask whether they mean that one host (`/32`) or the whole range (`x.y.z.0/24`) |
+| networks | `create_network` creates no subnet. Call `add_network_subnet` and wait for it to finish before you attach servers |
+
+## Choosing a type and an image
+Call `list_server_types` and pick a type whose `locations[]` entry for your location has `available: true` and `deprecation: null`. Call `list_images` and skip any image whose `deprecation` is set. The image's `architecture` must match the type's architecture (`x86` or `arm`). Use `get_pricing` to find the cheapest option in a location. Don't hardcode type names, because Hetzner retires them.
+
+## Required orders
+**Swap a Primary IP:** create the new IP in the same location → `shutdown_server` (wait for the Action) → `unassign_primary_ip` (wait) → `assign_primary_ip` (wait) → `power_on_server` → `delete_primary_ip` on the old IP. This takes the server offline, and the old address can't be recovered, so confirm with the user first. If `shutdown_server` doesn't finish within about 2 minutes, ask the user before you `power_off_server`.
+
+**Teardown:**
+1. `delete_load_balancer` (wait)
+2. `unassign_floating_ip` (wait) → `delete_floating_ip`
+3. `detach_volume` (wait) → `delete_volume`
+4. `delete_server` (wait)
+5. `delete_network`, `delete_firewall`, and unassigned primary IPs
+
+Deleting an assigned IP fails with `must_be_unassigned`.
+
+**Filtering by label:** no list tool takes a `label_selector`. Call the list tool for each resource type, including firewalls and primary IPs, then filter on `labels` yourself. List tools return every page.
+
+## Common mistakes
+| Symptom | Cause and fix |
+|---|---|
+| `locked` or `conflict` | Another Action is still running on the resource. Wait for it, then retry |
+| `must_be_unassigned` | Unassign the IP first, and wait for that Action |
+| `invalid_input` on a firewall | A CIDR has host bits set |
+| Server can't join the network | The subnet's `network_zone` doesn't match the server's location |
+| `protected` | Delete protection is on. Ask the user before you change it |
+
+## Safety
+Deletes, `reset_server`, `power_off_server`, and `change_server_type` can't be undone. Before you run any of them, list exactly what will be affected and get the user's confirmation.

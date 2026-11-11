@@ -76,9 +76,39 @@ The server exposes Hetzner Cloud API operations as MCP tools:
 | **Primary IPs**        | `list_primary_ips`, `create_primary_ip`, `get_primary_ip`, `update_primary_ip`, `delete_primary_ip`; `assign_primary_ip`, `unassign_primary_ip` (server must be off)                                                                                                                                   |
 | **SSH Keys**           | `list_ssh_keys`, `create_ssh_key`, `update_ssh_key`, `delete_ssh_key`                                                                                                                                                                                                                                  |
 | **Placement Groups**   | `list_placement_groups`, `create_placement_group`, `update_placement_group`, `delete_placement_group`                                                                                                                                                                                                  |
-| **Metadata & actions** | `list_locations`, `list_images`, `list_server_types`, `list_load_balancer_types`, `list_datacenters`, `get_pricing`; `list_actions`, `get_action` (poll async operations)                                                                                                                              |
+| **Metadata & actions** | `list_locations`, `list_images`, `list_server_types`, `list_load_balancer_types`, `get_pricing`; `list_actions`, `get_action` (poll async operations)                                                                                                                              |
 
 > **Note:** Subnets (not networks) are scoped to a `network_zone` (e.g., `eu-central`). Each Subnet has a `network_zone`; all Subnets within a Network share the same `network_zone`. Servers must be created in locations that match the Subnet's `network_zone`, so resources in the Network are constrained by the shared subnet `network_zone`.
+
+### Server instructions and agent skill
+
+The server sends **instructions** to the client when it connects. Most MCP clients add them to the model's context. They cover using locations instead of datacenters, polling Actions, the order to detach resources before deleting them, firewall CIDR rules, and deprecation checks. See `src/instructions.ts`.
+
+For deeper guidance, install the bundled skill **`hetzner-cloud`** (`skills/hetzner-cloud/SKILL.md`). It covers argument shapes, the required order for Primary IP swaps and teardowns, and fixes for common errors.
+
+```bash
+# Claude Code (personal skills)
+mkdir -p ~/.claude/skills && cp -r skills/hetzner-cloud ~/.claude/skills/
+# or from an npm install:
+cp -r "$(npm root -g)/hcloud-mcp/skills/hetzner-cloud" ~/.claude/skills/
+```
+
+The skill is also included in the npm package.
+
+## API compatibility
+
+Updated in 0.2.0 for Hetzner Cloud API changes through November 2026 ([changelog](https://docs.hetzner.cloud/changelog)):
+
+- `list_datacenters` is **removed**, because the endpoint now returns 410 Gone. Use `list_locations`.
+- `create_server` no longer accepts `datacenter`, because the API removed it on 2026-07-01. Use `location`.
+- `create_primary_ip` takes `location` instead of `datacenter`.
+- `delete_load_balancer` now returns the deletion Action.
+- `add_network_subnet` no longer offers the deprecated `server` type. Use `cloud`.
+- List tools now return every page. Previously they silently stopped at the first 25 items.
+- Floating IPs and Primary IPs must be unassigned before you delete them.
+- `list_actions` requires `id`, because Hetzner removed project-wide action listing. Use `get_action` to poll.
+
+New API features that aren't wrapped yet, such as DNS zones, Storage Boxes, network members, and LB Primary IPs, are tracked in [issues](https://github.com/Xodus-CO/hcloud-mcp/issues).
 
 ## Usage examples
 
@@ -87,8 +117,8 @@ With the MCP client connected, you can ask the agent to run tools using natural 
 ### Simple
 
 - _List my servers in Nuremberg_
-- _Create a cx22 server with Ubuntu 24.04_
-- _Create a cx22 server with Ubuntu 24.04 using my SSH key 'macbook'_
+- _Create the cheapest available server in fsn1 with Ubuntu 24.04_
+- _Create a small Ubuntu 24.04 server using my SSH key 'macbook'_
 - _Attach a 10GB volume to web-01_
 - _Set up a load balancer for my web servers_
 - _List load balancer types_
@@ -99,9 +129,9 @@ With the MCP client connected, you can ask the agent to run tools using natural 
 
 - _Create a private network 10.0.0.0/16 in eu-central, add a subnet, then create two servers in that zone (e.g. fsn1 and nbg1) and attach them_
 - _Create a firewall for SSH and HTTP, attach to my web servers, then create a load balancer and add those servers as targets_
-- _List running actions and get status of action 12345_
-- _Create a Primary IP in ash-dc1, power off web-01, assign the IP, power back on_
-- _Create a 20GB volume and a cx22 server in nbg1, attach the volume to the server, and show me the device path_
+- _Get status of action 12345_
+- _Create a Primary IP in ash, power off web-01, assign the IP, power back on_
+- _Create a 20GB volume and a small server in nbg1, attach the volume to the server, and show me the device path_
 - _Power off server 12345, change its type to cpx31, then power it back on_
 - _Add server web-02 as a target to my load balancer prod-lb_
 - _Tear down: detach/delete volumes, delete LB and firewall, unassign/delete floating IPs, delete servers web-01 and web-02_
@@ -112,6 +142,8 @@ With the MCP client connected, you can ask the agent to run tools using natural 
 | ----------------------- | ----------------------------------------------------------- |
 | `src/index.ts`          | Entry point, stdio transport, `HCLOUD_TOKEN` check          |
 | `src/register-tools.ts` | Tool definitions and Hetzner API calls (uses SDK McpServer) |
+| `src/instructions.ts`   | Server instructions sent to MCP clients at initialize       |
+| `skills/hetzner-cloud/` | Agent skill (SKILL.md) for driving this server safely        |
 
 **Scripts:**
 
@@ -122,6 +154,7 @@ npm run dev     # watch and recompile
 npm run test:api   # test list_* Hetzner API calls (requires HCLOUD_TOKEN)
 npm run test:mcp   # integration test: MCP client calls list_locations (requires HCLOUD_TOKEN)
 npm run audit:api  # verify create_* request body shapes (DRY_RUN=1, no resources created)
+npm run test:live  # full create→teardown cycle via MCP (COSTS a few cents; resources labeled hcloud-mcp-test=1, auto-cleaned)
 ```
 
 ## License

@@ -23,7 +23,6 @@ import {
     PricingService,
     ActionsService,
     LoadBalancerTypesService,
-    DatacentersService,
     PrimaryIpActionsService,
 } from "hetzner-sdk-ts";
 import { z } from "zod";
@@ -32,8 +31,8 @@ import { z } from "zod";
 const firewallRuleSchema = z.object({
     direction: z.enum(["in", "out"]),
     protocol: z.enum(["tcp", "udp", "icmp", "esp", "gre"]),
-    source_ips: z.array(z.string()).optional(),
-    destination_ips: z.array(z.string()).optional(),
+    source_ips: z.array(z.string()).optional().describe("CIDRs for direction=in; host bits must be zero (10.0.1.0/24, not 10.0.1.42/24; single host 192.0.2.2/32)"),
+    destination_ips: z.array(z.string()).optional().describe("CIDRs for direction=out; host bits must be zero"),
     port: z.string().optional(),
     description: z.string().nullable().optional(),
 });
@@ -64,6 +63,26 @@ async function withToolError(run: () => Promise<ToolResult>): Promise<ToolResult
     }
 }
 
+type PageParams = { page: number; perPage: number };
+
+// Hetzner list endpoints are paginated (default 25, max 50 per page). Follow
+// meta.pagination.next_page so list tools return every item, not just page 1.
+// (Link headers are deprecated by Hetzner; meta.pagination is the supported mechanism.)
+async function listAll<T = unknown>(
+    fetchPage: (params: PageParams) => Promise<any>,
+    key: string,
+): Promise<T[]> {
+    const items: T[] = [];
+    let page: number | null = 1;
+    while (page != null) {
+        const response = await fetchPage({ page, perPage: 50 });
+        items.push(...((response?.[key] as T[] | undefined) ?? []));
+        const next: number | null = response?.meta?.pagination?.next_page ?? null;
+        page = next != null && next > page ? next : null; // guard against non-advancing pagination
+    }
+    return items;
+}
+
 export function registerTools(server: McpServer) {
     // --- Servers ---
     server.tool(
@@ -71,8 +90,8 @@ export function registerTools(server: McpServer) {
         "List all servers",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const response = await ServersService.getServers({});
-            return { content: [{ type: "text", text: JSON.stringify(response.servers, null, 2) }] };
+            const items = await listAll((p) => ServersService.getServers(p), "servers");
+            return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
 
@@ -93,8 +112,7 @@ export function registerTools(server: McpServer) {
             name: z.string(),
             server_type: z.string(),
             image: z.string(),
-            location: z.string().optional().describe("ID or name (omit if datacenter set)"),
-            datacenter: z.string().optional().describe("ID or name (omit if location set)"),
+            location: z.string().optional().describe("Location name or ID, e.g. fsn1, nbg1, hel1, ash, hil, sin. Check list_server_types locations[].available first"),
             start_after_create: z.boolean().optional(),
             ssh_keys: z.array(z.union([z.string(), z.number()])).optional().describe("List of SSH key names or IDs"),
             firewalls: z.array(z.object({ firewall: z.number() })).optional(),
@@ -118,7 +136,6 @@ export function registerTools(server: McpServer) {
                 server_type: args.server_type,
                 image: args.image,
                 location: args.location,
-                datacenter: args.datacenter,
                 start_after_create: args.start_after_create,
                 ssh_keys: args.ssh_keys?.map((k) => (typeof k === "number" ? String(k) : k)),
                 firewalls: args.firewalls,
@@ -294,8 +311,8 @@ export function registerTools(server: McpServer) {
         "List all load balancers",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const response = await LoadBalancersService.getLoadBalancers({});
-            return { content: [{ type: "text", text: JSON.stringify(response.load_balancers, null, 2) }] };
+            const items = await listAll((p) => LoadBalancersService.getLoadBalancers(p), "load_balancers");
+            return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
 
@@ -336,11 +353,12 @@ export function registerTools(server: McpServer) {
 
     server.tool(
         "delete_load_balancer",
-        "Delete a load balancer",
+        "Delete a load balancer. Returns a delete_load_balancer Action; poll get_action until it finishes",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            await LoadBalancersService.deleteLoadBalancers({ id });
-            return { content: [{ type: "text", text: "Load Balancer deleted successfully" }] };
+            // Since 2026-10-05 this returns 201 + Action (previously 204 empty).
+            const response = await LoadBalancersService.deleteLoadBalancers({ id });
+            return { content: [{ type: "text", text: JSON.stringify(response ?? { deleted: true }, null, 2) }] };
         })
     );
 
@@ -510,8 +528,8 @@ export function registerTools(server: McpServer) {
         "List all networks",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const response = await NetworksService.getNetworks({});
-            return { content: [{ type: "text", text: JSON.stringify(response.networks, null, 2) }] };
+            const items = await listAll((p) => NetworksService.getNetworks(p), "networks");
+            return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
 
@@ -583,7 +601,8 @@ export function registerTools(server: McpServer) {
         "Add a subnet to a network (e.g. for private networking 10.0.0.0/16 in a zone)",
         {
             id: z.number().describe("Network ID"),
-            type: z.enum(["cloud", "server", "vswitch"]),
+            // "server" type is deprecated (removal 2027-04-15) and equivalent to "cloud".
+            type: z.enum(["cloud", "vswitch"]),
             network_zone: z.string().describe("Network zone, e.g. eu-central"),
             ip_range: z.string().optional().describe("CIDR, e.g. 10.0.0.0/24; omit for auto /24"),
             vswitch_id: z.number().optional().describe("Required if type is vswitch"),
@@ -619,8 +638,8 @@ export function registerTools(server: McpServer) {
         "List all volumes",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const response = await VolumesService.getVolumes({});
-            return { content: [{ type: "text", text: JSON.stringify(response.volumes, null, 2) }] };
+            const items = await listAll((p) => VolumesService.getVolumes(p), "volumes");
+            return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
 
@@ -721,8 +740,8 @@ export function registerTools(server: McpServer) {
         "List all firewalls",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const response = await FirewallsService.getFirewalls({});
-            return { content: [{ type: "text", text: JSON.stringify(response.firewalls, null, 2) }] };
+            const items = await listAll((p) => FirewallsService.getFirewalls(p), "firewalls");
+            return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
 
@@ -832,8 +851,8 @@ export function registerTools(server: McpServer) {
         "List all floating IPs",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const response = await FloatingIPsService.getFloatingIps({});
-            return { content: [{ type: "text", text: JSON.stringify(response.floating_ips, null, 2) }] };
+            const items = await listAll((p) => FloatingIPsService.getFloatingIps(p), "floating_ips");
+            return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
 
@@ -905,7 +924,7 @@ export function registerTools(server: McpServer) {
 
     server.tool(
         "delete_floating_ip",
-        "Delete a floating IP (unassigns from server if attached)",
+        "Delete a floating IP. Must be unassigned first (unassign_floating_ip), else fails with must_be_unassigned",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
             await FloatingIPsService.deleteFloatingIps({ id });
@@ -916,40 +935,42 @@ export function registerTools(server: McpServer) {
     // --- Primary IPs ---
     server.tool(
         "list_primary_ips",
-        "List all Primary IPs (static IPs bound to a datacenter, assignable to one server)",
+        "List all Primary IPs (static IPs bound to a location, assignable to one server)",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const response = await PrimaryIPsService.getPrimaryIps({});
-            return { content: [{ type: "text", text: JSON.stringify(response.primary_ips, null, 2) }] };
+            const items = await listAll((p) => PrimaryIPsService.getPrimaryIps(p), "primary_ips");
+            return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
 
     server.tool(
         "create_primary_ip",
-        "Create a Primary IP (datacenter-scoped; server must be off to assign). Provide datacenter OR assignee_id (server).",
+        "Create a Primary IP (location-scoped; server must be off to assign). Provide location OR assignee_id (server).",
         {
             name: z.string(),
             type: z.enum(["ipv4", "ipv6"]),
-            datacenter: z.string().optional().describe("ID or name of datacenter (omit if assignee_id set)"),
-            assignee_id: z.number().optional().describe("Server ID to assign to immediately (omit if datacenter set)"),
+            location: z.string().optional().describe("Location name or ID, e.g. fsn1 (omit if assignee_id set)"),
+            assignee_id: z.number().optional().describe("Server ID to assign to immediately (omit if location set)"),
             auto_delete: z.boolean().optional(),
             labels: z.record(z.string()).optional(),
         },
         async (args, _extra) => withToolError(async () => {
-            const hasDatacenter = args.datacenter != null && args.datacenter !== "";
+            const hasLocation = args.location != null && args.location !== "";
             const hasAssignee = args.assignee_id != null;
-            if (hasDatacenter === hasAssignee) {
-                throw new Error("Provide exactly one of datacenter or assignee_id (mutually exclusive)");
+            if (hasLocation === hasAssignee) {
+                throw new Error("Provide exactly one of location or assignee_id (mutually exclusive)");
             }
+            // hetzner-sdk-ts 1.0.1 still models the removed `datacenter` field; the API
+            // (since 2026-07-01) takes `location`. The SDK passes the body through as JSON.
             const requestBody = {
                 name: args.name,
                 type: args.type,
-                assignee_type: "server" as const,
-                datacenter: args.datacenter,
+                location: args.location,
                 assignee_id: args.assignee_id,
+                ...(hasAssignee ? { assignee_type: "server" as const } : {}),
                 auto_delete: args.auto_delete,
                 labels: args.labels,
-            };
+            } as unknown as Parameters<typeof PrimaryIPsService.postPrimaryIps>[0]["requestBody"];
             const response = await PrimaryIPsService.postPrimaryIps({ requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -984,7 +1005,7 @@ export function registerTools(server: McpServer) {
 
     server.tool(
         "delete_primary_ip",
-        "Delete a Primary IP (unassigns from server if assigned; server must be off)",
+        "Delete a Primary IP. Must be unassigned first (unassign_primary_ip, server powered off), else fails with must_be_unassigned",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
             await PrimaryIPsService.deletePrimaryIps({ id });
@@ -1024,8 +1045,8 @@ export function registerTools(server: McpServer) {
         "List all SSH keys",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const response = await SshKeysService.getSshKeys({});
-            return { content: [{ type: "text", text: JSON.stringify(response.ssh_keys, null, 2) }] };
+            const items = await listAll((p) => SshKeysService.getSshKeys(p), "ssh_keys");
+            return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
 
@@ -1081,56 +1102,46 @@ export function registerTools(server: McpServer) {
         "List all locations",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const response = await LocationsService.getLocations({});
-            return { content: [{ type: "text", text: JSON.stringify(response.locations, null, 2) }] };
+            const items = await listAll((p) => LocationsService.getLocations(p), "locations");
+            return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
 
     server.tool(
         "list_images",
-        "List all images",
+        "List all images (check each image's `deprecation` field; deprecated images can stop being usable for new servers)",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const response = await ImagesService.getImages({});
-            return { content: [{ type: "text", text: JSON.stringify(response.images, null, 2) }] };
+            const items = await listAll((p) => ImagesService.getImages(p), "images");
+            return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
 
     server.tool(
         "list_server_types",
-        "List all server types",
+        "List all server types. Per-location availability is in locations[]: available, recommended, deprecation (top-level `deprecated` was removed)",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const response = await ServerTypesService.getServerTypes({});
-            return { content: [{ type: "text", text: JSON.stringify(response.server_types, null, 2) }] };
+            const items = await listAll((p) => ServerTypesService.getServerTypes(p), "server_types");
+            return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
 
     server.tool(
         "list_load_balancer_types",
-        "List all load balancer types (for create_load_balancer load_balancer_type)",
+        "List all load balancer types (for create_load_balancer load_balancer_type; check `deprecation`)",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const response = await LoadBalancerTypesService.getLoadBalancerTypes({});
-            return { content: [{ type: "text", text: JSON.stringify(response.load_balancer_types, null, 2) }] };
-        })
-    );
-
-    server.tool(
-        "list_datacenters",
-        "List all datacenters (e.g. ash-dc1; where servers can be created)",
-        {},
-        async (_args?, _extra?) => withToolError(async () => {
-            const response = await DatacentersService.getDatacenters({});
-            return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
+            const items = await listAll((p) => LoadBalancerTypesService.getLoadBalancerTypes(p), "load_balancer_types");
+            return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
 
     server.tool(
         "list_actions",
-        "List actions (optionally filter by id, status); use to poll/wait for create/delete results",
+        "Get an action by ID with optional status filter. Hetzner no longer supports listing all actions in a project, so id is required. Prefer get_action",
         {
-            id: z.number().optional(),
+            id: z.number().describe("Action ID (required by the API since 2025-01-30)"),
             status: z.enum(["running", "success", "error"]).optional(),
             sort: z
                 .enum([
@@ -1180,8 +1191,8 @@ export function registerTools(server: McpServer) {
         "List all placement groups",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const response = await PlacementGroupsService.getPlacementGroups({});
-            return { content: [{ type: "text", text: JSON.stringify(response.placement_groups, null, 2) }] };
+            const items = await listAll((p) => PlacementGroupsService.getPlacementGroups(p), "placement_groups");
+            return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
 
