@@ -153,10 +153,29 @@ try {
     let s = await call("get_server", { id: srv.id }); s = s.server ?? s;
     if (!s.backup_window) throw new Error(`backups not enabled: backup_window=${s.backup_window}`);
     ok("enable_server_backups", `backup_window ${s.backup_window}`);
+
+    // Manual backup, then convert it to a snapshot so it survives disabling backups.
+    const bkResp = await call("create_snapshot", { id: srv.id, type: "backup", labels: LABEL });
+    const bkId = bkResp.image?.id;
+    if (!bkId || bkResp.image.type !== "backup") throw new Error(`create backup: ${JSON.stringify(bkResp).slice(0, 300)}`);
+    await waitActions(bkResp, "create backup");
+    let bk;
+    for (let i = 0; i < 120; i++) { bk = await call("get_image", { id: bkId }); bk = bk.image ?? bk; if (bk.status === "available") break; await sleep(5000); }
+    if (bk.status !== "available" || bk.bound_to !== srv.id) throw new Error(`backup image: status ${bk.status}, bound_to ${bk.bound_to}`);
+    const bkBound = await call("list_snapshots", { type: ["backup"], bound_to: [String(srv.id)] });
+    if (!bkBound.some((i) => i.id === bkId)) throw new Error("list_snapshots(bound_to) missed the backup");
+    ok("create_snapshot(type backup) + list_snapshots(bound_to)", `image ${bkId}, bound_to ${bk.bound_to}`);
+    let conv = await call("update_image", { id: bkId, type: "snapshot", labels: LABEL }); conv = conv.image ?? conv;
+    if (conv.type !== "snapshot") throw new Error(`conversion: type ${conv.type}`);
+    ok("update_image(type snapshot) converts backup", `bound_to now ${conv.bound_to}`);
+
     await waitActions(await call("disable_server_backups", { id: srv.id }), "disable_backup");
     s = await call("get_server", { id: srv.id }); s = s.server ?? s;
     if (s.backup_window) throw new Error(`backups still enabled: ${s.backup_window}`);
-    ok("disable_server_backups");
+    let survived = await call("get_image", { id: bkId }); survived = survived.image ?? survived;
+    if (survived.type !== "snapshot") throw new Error(`converted image after disable: ${JSON.stringify(survived).slice(0, 200)}`);
+    await call("delete_image", { id: bkId });
+    ok("disable_server_backups (converted snapshot survived, then deleted)");
 
     // --- change_protection local validation ---
     const e1 = await callFails("change_protection", { resource: "volume", id: 1, rebuild: true });
