@@ -1,6 +1,6 @@
 ---
 name: hetzner-cloud
-description: Use when provisioning, changing, or tearing down Hetzner Cloud resources through the hcloud-mcp tools (servers, networks, firewalls, load balancers, volumes, floating or primary IPs), or when a Hetzner call fails with must_be_unassigned, locked, invalid_input, or a 410.
+description: Use when provisioning, changing, recovering, or tearing down Hetzner resources through the hcloud-mcp tools (servers, networks, firewalls, load balancers, volumes, IPs, DNS, certificates, snapshots, Storage Boxes), or when a Hetzner call fails with must_be_unassigned, locked, invalid_input, or a 410.
 ---
 
 # Hetzner Cloud via hcloud-mcp
@@ -56,6 +56,31 @@ Deleting an assigned IP fails with `must_be_unassigned`.
 - **A new zone answers nothing yet.** Tell the user to point the domain's nameservers at the registrar to `get_zone.authoritative_nameservers.assigned`.
 - **Errors:** `protected` means `change_rrset_protection` or `change_zone_protection` is on; ask the user before turning it off. `incorrect_zone_mode` means you tried a record edit on a secondary zone.
 
+## Recovery, snapshots, protection
+- **Before a risky change** (`rebuild_server`, `change_server_type`): power the server off → `create_snapshot` (wait for it to finish) → make the change. Find and clean up snapshots later with `list_snapshots`, since they bill per GB-month.
+- **Locked out of a server:** first try `reset_root_password`, which needs the qemu guest agent; stock images have it. If that fails: `enable_rescue` → wait for the Action → `reset_server` → fix things from the rescue system. Rescue switches itself off after one boot. `request_console` gives a browser VNC URL that must be used within 60 seconds.
+- **Secrets:** passwords and console URLs go to the user only. Never write them to files, labels, or later tool arguments.
+- **Protection:** use `change_protection(resource, id, delete)`. On servers it also sets rebuild protection, because the API requires both to match. Only remove protection after the user confirms.
+- **Backups:** `disable_server_backups` deletes every existing backup. To keep one, run `update_image type:"snapshot"` on it first.
+
+## Metrics
+Call `get_server_metrics` or `get_load_balancer_metrics` with `last_minutes` and `include_values:false` to get the summary first. Pull the raw series only if something looks off. CPU is per vCPU: 200 means two full cores.
+
+## Certificates and load balancer HTTPS
+- **Managed (Let's Encrypt):** the domain must be in a primary Hetzner DNS zone that is delegated to Hetzner. Steps: `create_zone` → user delegates it at the registrar → `create_certificate type:managed` → poll `get_action`. Hetzner renews it automatically.
+- **Uploaded:** certificates never renew. To rotate, create the new cert, point the LB service at it via `update_load_balancer_service http.certificates`, then delete the old one. Check `used_by` before deleting any certificate.
+
+## Storage Boxes
+- **Where they live:** `api.hetzner.com`, using the same token. Poll their actions with `get_storage_box_action`, and wait for the box's `status: active`.
+- **Passwords:** 12–128 characters, with upper case, lower case, a digit and a special character. Generate a random one rather than inventing a memorable one. A password reset locks out existing clients.
+- **Irreversible actions:** `rollback_storage_box_snapshot` discards newer snapshots and all data written since. `delete_storage_box` removes everything. Confirm first, and suggest `change_storage_box_protection`.
+
+## Labels and network changes
+- **Labels:** every `update_*` replaces the whole label set. Read the current labels and merge.
+- **Alias IPs:** `change_server_alias_ips` replaces the whole list. Send the existing IPs plus the new one.
+- **Placement groups:** `add_server_to_placement_group` needs the server powered off. Removing works while it runs.
+- **Network ranges:** `change_network_ip_range` can only widen the range (e.g. /16 → /15), and needs every member detached first.
+
 ## Common mistakes
 | Symptom | Cause and fix |
 |---|---|
@@ -66,4 +91,4 @@ Deleting an assigned IP fails with `must_be_unassigned`.
 | `protected` | Delete protection is on. Ask the user before you change it |
 
 ## Safety
-Deletes, `rebuild_server` (wipes the disk), `import_zonefile`, `reset_server`, `power_off_server`, and `change_server_type` can't be undone. Before you run any of them, list exactly what will be affected and get the user's confirmation.
+Deletes, `rebuild_server` (wipes the disk), `import_zonefile`, `rollback_storage_box_snapshot`, `disable_server_backups`, `reset_server`, `power_off_server`, and `change_server_type` can't be undone. Before you run any of them, list exactly what will be affected and get the user's confirmation.

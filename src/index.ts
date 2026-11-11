@@ -34,14 +34,27 @@ const server = new McpServer(
     { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS }
 );
 
-registerTools(server);
-registerDnsTools(server);
-registerExtraTools(server);
-registerStorageBoxTools(server);
-registerCertificateTools(server);
-registerImageTools(server);
-registerServerOpsTools(server);
-registerActionGapTools(server);
+// Tool groups. HCLOUD_TOOLSETS (comma-separated) limits which load, for clients with
+// tool-count limits; default is all. "core" is always loaded.
+const TOOLSETS: Record<string, Array<(s: McpServer) => void>> = {
+    core: [registerTools, registerExtraTools, registerActionGapTools],
+    dns: [registerDnsTools],
+    images: [registerImageTools],
+    ops: [registerServerOpsTools],
+    certificates: [registerCertificateTools],
+    storage_boxes: [registerStorageBoxTools],
+};
+const requested = (process.env.HCLOUD_TOOLSETS ?? "")
+    .split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
+const unknown = requested.filter((t) => t !== "all" && !(t in TOOLSETS));
+if (unknown.length) {
+    console.error(`Error: unknown HCLOUD_TOOLSETS ${unknown.join(", ")}. Valid: all, ${Object.keys(TOOLSETS).join(", ")}`);
+    process.exit(1);
+}
+const enabled = requested.length === 0 || requested.includes("all")
+    ? Object.keys(TOOLSETS)
+    : ["core", ...requested.filter((t) => t !== "core")];
+for (const name of enabled) for (const register of TOOLSETS[name]) register(server);
 
 async function main() {
     const transport = new StdioServerTransport();

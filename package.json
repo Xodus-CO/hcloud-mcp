@@ -16,6 +16,11 @@
     "test:mcp": "node scripts/test-mcp-list.mjs",
     "test:live": "node scripts/test-live-lifecycle.mjs",
     "test:live:dns": "node scripts/test-live-dns.mjs",
+    "test:live:images": "node scripts/test-live-images.mjs",
+    "test:live:ops": "node scripts/test-live-server-ops.mjs",
+    "test:live:actions": "node scripts/test-live-action-gaps.mjs",
+    "test:live:certs": "node scripts/test-live-certificates.mjs",
+    "test:live:storage": "node scripts/test-live-storage-box.mjs",
     "audit:api": "cross-env DRY_RUN=1 node scripts/audit-api-shapes.mjs"
   },
   "keywords": [
