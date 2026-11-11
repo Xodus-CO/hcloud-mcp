@@ -51,7 +51,8 @@ await check("get_pricing", async () => {
 
 await check("error format (GET /servers/1)", async () => {
     try {
-        await hcloudRequest("GET", "/servers/1");
+        // IDs start at 1, so 0 can never exist in any project (always not_found).
+        await hcloudRequest("GET", "/servers/0");
     } catch (e) {
         if (!(e instanceof HcloudApiError) || !/^not_found \(404\): /.test(e.message)) throw new Error(`unexpected: ${e?.message ?? e}`);
         return e.message;
