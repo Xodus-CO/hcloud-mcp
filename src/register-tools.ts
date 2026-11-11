@@ -469,6 +469,7 @@ export function registerTools(server: McpServer) {
                     certificates: z.array(z.number()).optional(),
                     redirect_http: z.boolean().optional(),
                     sticky_sessions: z.boolean().optional(),
+                    timeout_idle: z.number().int().min(30).max(300).optional().describe("Idle timeout in seconds (30-300, default 50)"),
                 })
                 .optional(),
         },

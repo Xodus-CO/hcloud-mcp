@@ -126,6 +126,27 @@ try {
     if ("datacenter" in srvInfo) console.log("     note: server response still includes datacenter");
     ok("create_server(location)", `id ${srv.id}, location ${srvInfo.location.name}`);
 
+    // --- list_network_members (#4) ---
+    const members = await call("list_network_members", { id: net.id, type: "server" });
+    if (!members.some((m) => m.id === srv.id && m.ip?.startsWith("10.77.1."))) throw new Error(`server not in members: ${JSON.stringify(members)}`);
+    ok("list_network_members", `${members.length} member(s), ip ${members.find((m) => m.id === srv.id).ip}`);
+
+    // --- change_dns_ptr set + reset (#7) ---
+    const v4 = srvInfo.public_net.ipv4.ip;
+    await waitActions(await call("change_dns_ptr", { resource: "server", id: srv.id, ip: v4, dns_ptr: `t-${suffix}.example.com` }), "ptr set");
+    const ptrSet = (await call("get_server", { id: srv.id })).public_net.ipv4.dns_ptr;
+    if (ptrSet !== `t-${suffix}.example.com`) throw new Error(`ptr not set: ${ptrSet}`);
+    await waitActions(await call("change_dns_ptr", { resource: "server", id: srv.id, ip: v4, dns_ptr: null }), "ptr reset");
+    const ptrReset = (await call("get_server", { id: srv.id })).public_net.ipv4.dns_ptr;
+    if (ptrReset === `t-${suffix}.example.com`) throw new Error("ptr not reset");
+    ok("change_dns_ptr (set, then null resets)", `default ${ptrReset}`);
+
+    // --- rebuild_server with user_data (#5) ---
+    const rb = await call("rebuild_server", { id: srv.id, image: image.name, user_data: "#cloud-config\nhostname: rebuilt\n" });
+    if (!rb?.action?.id || rb.action.command !== "rebuild_server") throw new Error(`rebuild: ${JSON.stringify(rb).slice(0, 200)}`);
+    await waitActions(rb, "rebuild");
+    ok("rebuild_server (user_data)", `root_password ${rb.root_password ? "returned" : "null (ssh-key image)"}`);
+
     // --- Primary IP: create by location, swap onto server ---
     const pip = (await call("create_primary_ip", { name: `t-pip-${suffix}`, type: "ipv4", location: best.location, auto_delete: false, labels: LABEL })).primary_ip;
     if (pip.assignee_type !== "unassigned") throw new Error(`expected assignee_type unassigned, got ${pip.assignee_type}`);
@@ -163,7 +184,20 @@ try {
     // --- Load balancer: delete returns Action ---
     const lbResp = await call("create_load_balancer", { name: `t-lb-${suffix}`, load_balancer_type: "lb11", location: best.location, labels: LABEL });
     await waitActions(lbResp, "create_lb");
-    const delLb = await call("delete_load_balancer", { id: lbResp.load_balancer.id });
+    const lbId = lbResp.load_balancer.id;
+    await waitActions(await call("add_load_balancer_service", {
+        id: lbId, protocol: "http", listen_port: 80, destination_port: 80, proxyprotocol: false,
+        health_check: { protocol: "http", port: 80, interval: 15, timeout: 10, retries: 3, http: { path: "/" } },
+    }), "add service");
+    await waitActions(await call("update_load_balancer_service", { id: lbId, listen_port: 80, http: { timeout_idle: 120 } }), "timeout_idle");
+    const svc = (await call("get_load_balancer", { id: lbId })).services?.find((x) => x.listen_port === 80)
+        ?? (await call("get_load_balancer", { id: lbId })).load_balancer?.services?.find((x) => x.listen_port === 80);
+    if (svc?.http?.timeout_idle !== 120) throw new Error(`timeout_idle not applied: ${JSON.stringify(svc?.http)}`);
+    ok("update_load_balancer_service http.timeout_idle", "120s");
+    const lbIp = lbResp.load_balancer.public_net.ipv4.ip;
+    await waitActions(await call("change_dns_ptr", { resource: "load_balancer", id: lbId, ip: lbIp, dns_ptr: `lb-${suffix}.example.com` }), "lb ptr");
+    ok("change_dns_ptr on load balancer");
+    const delLb = await call("delete_load_balancer", { id: lbId });
     if (!delLb?.action?.id) throw new Error(`delete_load_balancer returned no action: ${JSON.stringify(delLb).slice(0, 200)}`);
     await waitActions(delLb, "delete_lb");
     ok("delete_load_balancer returns Action", `command=${delLb.action.command}`);

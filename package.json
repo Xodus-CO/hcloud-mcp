@@ -25,7 +25,10 @@
     "model-context-protocol"
   ],
   "license": "MIT",
-  "repository": "github:Xodus-CO/hcloud-mcp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Xodus-CO/hcloud-mcp.git"
+  },
   "homepage": "https://github.com/Xodus-CO/hcloud-mcp#readme",
   "bugs": "https://github.com/Xodus-CO/hcloud-mcp/issues",
   "dependencies": {
