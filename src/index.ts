@@ -7,6 +7,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { OpenAPI } from "hetzner-sdk-ts";
 import { registerTools } from "./register-tools.js";
 import { registerDnsTools } from "./dns-tools.js";
+import { registerExtraTools } from "./extra-tools.js";
 import { SERVER_INSTRUCTIONS } from "./instructions.js";
 
 // Load .env from project root (parent of dist) so IDE-spawned server finds token when env isn't set
@@ -30,6 +31,7 @@ const server = new McpServer(
 
 registerTools(server);
 registerDnsTools(server);
+registerExtraTools(server);
 
 async function main() {
     const transport = new StdioServerTransport();

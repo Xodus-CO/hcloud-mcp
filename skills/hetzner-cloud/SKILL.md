@@ -66,4 +66,4 @@ Deleting an assigned IP fails with `must_be_unassigned`.
 | `protected` | Delete protection is on. Ask the user before you change it |
 
 ## Safety
-Deletes, `reset_server`, `power_off_server`, and `change_server_type` can't be undone. Before you run any of them, list exactly what will be affected and get the user's confirmation.
+Deletes, `rebuild_server` (wipes the disk), `import_zonefile`, `reset_server`, `power_off_server`, and `change_server_type` can't be undone. Before you run any of them, list exactly what will be affected and get the user's confirmation.

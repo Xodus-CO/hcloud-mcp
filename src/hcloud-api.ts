@@ -4,7 +4,8 @@ import { OpenAPI } from "hetzner-sdk-ts";
 
 const BASE_URL = "https://api.hetzner.cloud/v1";
 
-type Query = Record<string, string | number | boolean | undefined | null>;
+type QueryValue = string | number | boolean | undefined | null;
+type Query = Record<string, QueryValue | QueryValue[]>;
 
 export class HcloudApiError extends Error {
     constructor(
@@ -29,8 +30,11 @@ export async function hcloudRequest<T = any>(
     options: { query?: Query; body?: unknown } = {},
 ): Promise<T> {
     const url = new URL(BASE_URL + path);
-    for (const [k, v] of Object.entries(options.query ?? {})) {
-        if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
+    for (const [k, raw] of Object.entries(options.query ?? {})) {
+        // Arrays become repeated params (?status=ok&status=error), as the API expects.
+        for (const v of Array.isArray(raw) ? raw : [raw]) {
+            if (v !== undefined && v !== null && v !== "") url.searchParams.append(k, String(v));
+        }
     }
     const res = await fetch(url, {
         method,
