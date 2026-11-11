@@ -43,9 +43,11 @@ export function registerExtraTools(server: McpServer) {
         "List resources attached to a network (servers and load balancers) with their private IP, alias IPs, subnet and attachment status. All pages",
         {
             id: z.number().describe("Network ID"),
-            type: z.enum(["server", "load_balancer"]).optional(),
-            subnet: z.string().optional().describe("Subnet IP range in CIDR, e.g. 10.0.1.0/24"),
-            status: z.enum(["ok", "attaching", "detaching", "updating", "error"]).optional(),
+            // Each filter may be given multiple times (OR within a filter), per the API spec.
+            type: z.array(z.enum(["server", "load_balancer"])).optional(),
+            subnet: z.array(z.string()).optional().describe("Subnet IP ranges in CIDR, e.g. [\"10.0.1.0/24\"]"),
+            status: z.array(z.enum(["ok", "attaching", "detaching", "updating", "error"])).optional()
+                .describe("Attachment status (spec enum: ok, attaching, detaching, updating, error)"),
         },
         async ({ id, ...filters }) => withToolError(async () => {
             const members = await listAll(

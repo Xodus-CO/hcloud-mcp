@@ -127,7 +127,7 @@ try {
     ok("create_server(location)", `id ${srv.id}, location ${srvInfo.location.name}`);
 
     // --- list_network_members (#4) ---
-    const members = await call("list_network_members", { id: net.id, type: "server" });
+    const members = await call("list_network_members", { id: net.id, type: ["server"], status: ["ok", "attaching"] });
     if (!members.some((m) => m.id === srv.id && m.ip?.startsWith("10.77.1."))) throw new Error(`server not in members: ${JSON.stringify(members)}`);
     ok("list_network_members", `${members.length} member(s), ip ${members.find((m) => m.id === srv.id).ip}`);
 
