@@ -1,6 +1,21 @@
 // Shared helpers for tool modules.
 
+// hetzner-sdk-ts throws ApiError with the Hetzner error JSON in `body` and a vague
+// message ("Forbidden", "Generic Error: ..."). Surface the API's code/message instead,
+// matching HcloudApiError's format: "<code> (<status>): <message> <details>".
 export const formatError = (error: unknown) => {
+    const e = error as { name?: string; status?: number; body?: unknown; message?: string } | undefined;
+    if (e && e.name === "ApiError" && e.body != null) {
+        let body: any = e.body;
+        if (typeof body === "string") {
+            try { body = JSON.parse(body); } catch { /* keep string */ }
+        }
+        const apiErr = body?.error;
+        if (apiErr?.code) {
+            const details = apiErr.details && Object.keys(apiErr.details).length ? ` ${JSON.stringify(apiErr.details)}` : "";
+            return `${apiErr.code} (${e.status}): ${apiErr.message ?? ""}${details}`;
+        }
+    }
     if (error instanceof Error) {
         return error.message;
     }

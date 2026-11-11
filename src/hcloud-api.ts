@@ -2,7 +2,9 @@
 // cover (e.g. DNS zones / RRSets). Uses the same token as the SDK.
 import { OpenAPI } from "hetzner-sdk-ts";
 
-const BASE_URL = "https://api.hetzner.cloud/v1";
+// Cloud API (servers, networks, DNS, ...) and the Hetzner API (Storage Boxes) accept the same project token.
+export const CLOUD_API = "https://api.hetzner.cloud/v1";
+export const HETZNER_API = "https://api.hetzner.com/v1";
 
 type QueryValue = string | number | boolean | undefined | null;
 type Query = Record<string, QueryValue | QueryValue[]>;
@@ -27,9 +29,9 @@ function token(): string {
 export async function hcloudRequest<T = any>(
     method: "GET" | "POST" | "PUT" | "DELETE",
     path: string,
-    options: { query?: Query; body?: unknown } = {},
+    options: { query?: Query; body?: unknown; baseUrl?: string } = {},
 ): Promise<T> {
-    const url = new URL(BASE_URL + path);
+    const url = new URL((options.baseUrl ?? CLOUD_API) + path);
     for (const [k, raw] of Object.entries(options.query ?? {})) {
         // Arrays become repeated params (?status=ok&status=error), as the API expects.
         for (const v of Array.isArray(raw) ? raw : [raw]) {

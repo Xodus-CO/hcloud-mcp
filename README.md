@@ -78,9 +78,31 @@ The server exposes Hetzner Cloud API operations as MCP tools:
 | **SSH Keys**           | `list_ssh_keys`, `create_ssh_key`, `update_ssh_key`, `delete_ssh_key`                                                                                                                                                                                                                                  |
 | **Placement Groups**   | `list_placement_groups`, `create_placement_group`, `update_placement_group`, `delete_placement_group`                                                                                                                                                                                                  |
 | **DNS** | `list_zones`, `get_zone`, `create_zone`, `update_zone`, `delete_zone`; `export_zonefile`, `import_zonefile`; `change_zone_ttl`, `change_zone_primary_nameservers`, `change_zone_protection`; `list_rrsets`, `get_rrset`, `create_rrset`, `update_rrset`, `delete_rrset`; `set_rrset_records`, `add_rrset_records`, `remove_rrset_records`, `update_rrset_records`, `change_rrset_ttl`, `change_rrset_protection` |
+| **Snapshots & backups** | `create_snapshot`, `list_snapshots`, `get_image`, `update_image`, `delete_image`; `enable_server_backups`, `disable_server_backups` |
+| **Protection** | `change_protection` (servers, volumes, floating/primary IPs, LBs, networks, images) |
+| **Rescue & console** | `enable_rescue`, `disable_rescue`, `reset_root_password`, `request_console` |
+| **Metrics** | `get_server_metrics`, `get_load_balancer_metrics` (with min/avg/max summary; `last_minutes` shortcut) |
+| **More actions** | `add_server_to_placement_group`, `remove_server_from_placement_group`, `change_server_alias_ips`; `attach_load_balancer_to_network`, `detach_load_balancer_from_network`, `change_load_balancer_algorithm`, `change_load_balancer_type`, `enable_load_balancer_public_interface`, `disable_load_balancer_public_interface`; `add_network_route`, `delete_network_route`, `change_network_ip_range`; `list_isos` |
+| **Certificates** | `list_certificates`, `get_certificate`, `create_certificate` (uploaded or managed Let's Encrypt), `update_certificate`, `delete_certificate`, `retry_certificate` |
+| **Storage Boxes** | boxes: `list_storage_boxes`, `get_storage_box`, `create_storage_box`, `update_storage_box`, `delete_storage_box`, `list_storage_box_folders`, `list_storage_box_types`, `get_storage_box_type`; actions: `change_storage_box_type`, `change_storage_box_protection`, `reset_storage_box_password`, `update_storage_box_access_settings`, `enable_storage_box_snapshot_plan`, `disable_storage_box_snapshot_plan`, `rollback_storage_box_snapshot`, `list_storage_box_actions`, `get_storage_box_action`; subaccounts (`*_storage_box_subaccount*`) and snapshots (`*_storage_box_snapshot*`) |
 | **Metadata & actions** | `list_locations`, `list_images`, `list_server_types`, `list_load_balancer_types`, `get_pricing`; `list_actions`, `get_action` (poll async operations)                                                                                                                              |
 
 > **Note:** Subnets (not networks) are scoped to a `network_zone` (e.g., `eu-central`). Each Subnet has a `network_zone`; all Subnets within a Network share the same `network_zone`. Servers must be created in locations that match the Subnet's `network_zone`, so resources in the Network are constrained by the shared subnet `network_zone`.
+
+### Limiting tools (`HCLOUD_TOOLSETS`)
+
+The server exposes about 160 tools. Some MCP clients cap the total number of tools, or slow down with very many. Set `HCLOUD_TOOLSETS` to load only the groups you need. The `core` group is always loaded.
+
+| Toolset | Contents |
+|---|---|
+| `core` | Servers, networks, firewalls, volumes, LBs, IPs, SSH keys, placement groups, reverse DNS, metadata, and extra actions |
+| `dns` | DNS zones and RRSets |
+| `images` | Snapshots, backups, image management, `change_protection` |
+| `ops` | Rescue, console, root password, metrics |
+| `certificates` | TLS certificates |
+| `storage_boxes` | Storage Boxes, subaccounts, snapshots |
+
+Example: `"env": { "HCLOUD_TOKEN": "...", "HCLOUD_TOOLSETS": "dns,images" }`. If you leave it unset, or set it to `all`, everything loads.
 
 ### Server instructions and agent skill
 
@@ -110,7 +132,7 @@ Updated in 0.2.0 for Hetzner Cloud API changes through November 2026 ([changelog
 - Floating IPs and Primary IPs must be unassigned before you delete them.
 - `list_actions` requires `id`, because Hetzner removed project-wide action listing. Use `get_action` to poll.
 
-New API features that aren't wrapped yet, such as Storage Boxes, network members, and LB Primary IPs, are tracked in [issues](https://github.com/Xodus-CO/hcloud-mcp/issues).
+Hetzner Robot (dedicated servers) is not covered yet; see [#21](https://github.com/Xodus-CO/hcloud-mcp/issues/21).
 
 ## Usage examples
 
@@ -149,6 +171,11 @@ With the MCP client connected, you can ask the agent to run tools using natural 
 | `src/extra-tools.ts`    | Newer Cloud API endpoints (reverse DNS, rebuild, network members) |
 | `src/dns-tools.ts`      | DNS zone/RRSet tools (direct API client, not in the SDK)    |
 | `src/hcloud-api.ts`     | Minimal fetch client for endpoints hetzner-sdk-ts lacks     |
+| `src/action-gap-tools.ts` | Placement groups, alias IPs, LB network/type/algorithm/public interface, routes, ISOs |
+| `src/image-tools.ts`    | Snapshots, backups, image management, `change_protection` |
+| `src/server-ops-tools.ts` | Rescue, console, root password, server/LB metrics |
+| `src/certificate-tools.ts` | TLS certificates |
+| `src/storage-box-tools.ts` | Storage Boxes (api.hetzner.com, same token) |
 | `src/instructions.ts`   | Server instructions sent to MCP clients at initialize       |
 | `skills/hetzner-cloud/` | Agent skill (SKILL.md) for driving this server safely        |
 
@@ -162,6 +189,11 @@ npm run test:api   # test list_* Hetzner API calls (requires HCLOUD_TOKEN)
 npm run test:mcp   # integration test: MCP client calls list_locations (requires HCLOUD_TOKEN)
 npm run audit:api  # verify create_* request body shapes (DRY_RUN=1, no resources created)
 npm run test:live:dns  # DNS create→teardown on a throwaway zone (free)
+npm run test:live:images    # snapshots, backups, protection (costs cents)
+npm run test:live:ops       # rescue, console, root password, metrics (costs cents)
+npm run test:live:actions   # placement groups, alias IPs, LB/network actions, ISOs (costs cents)
+npm run test:live:certs     # uploaded self-signed certificate lifecycle (free)
+npm run test:live:storage   # Storage Box lifecycle on a new bx11 (fractions of a cent; never touches existing boxes)
 npm run test:live  # full create→teardown cycle via MCP (COSTS a few cents; resources get a unique per-run hcloud-mcp-test label, auto-cleaned)
 ```
 
