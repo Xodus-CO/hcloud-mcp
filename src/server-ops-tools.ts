@@ -1,5 +1,5 @@
 // Server rescue / console / root password actions (#17) and server + load balancer
-// metrics (#19), implemented with the direct client in hcloud-api.ts.
+// metrics (#19).
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { hcloudRequest } from "./hcloud-api.js";

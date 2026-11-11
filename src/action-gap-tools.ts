@@ -1,6 +1,5 @@
-// Remaining server / load balancer / network actions and ISO listing (issue #20),
-// implemented with the direct client in hcloud-api.ts. Action tools return the
-// API response ({ action }); poll get_action until status is success.
+// Remaining server / load balancer / network actions and ISO listing (issue #20).
+// Action tools return the API response ({ action }); poll get_action until status is success.
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { hcloudRequest } from "./hcloud-api.js";

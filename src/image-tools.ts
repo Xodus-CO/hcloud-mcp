@@ -1,5 +1,4 @@
-// Snapshots, backups and image management (#16) plus resource protection (#18),
-// implemented with the direct client in hcloud-api.ts.
+// Snapshots, backups and image management (#16) plus resource protection (#18).
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { hcloudRequest } from "./hcloud-api.js";

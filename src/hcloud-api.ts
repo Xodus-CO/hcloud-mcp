@@ -49,7 +49,14 @@ export async function hcloudRequest<T = any>(
     });
     if (res.status === 204) return {} as T;
     const text = await res.text();
-    const data = text ? JSON.parse(text) : {};
+    let data: any = {};
+    try {
+        data = text ? JSON.parse(text) : {};
+    } catch (e) {
+        // Non-JSON body (e.g. an HTML 502 from a proxy): report the HTTP status instead.
+        if (!res.ok) throw new HcloudApiError(res.status, "http_error", res.statusText);
+        throw e;
+    }
     if (!res.ok) {
         const err = data?.error ?? {};
         throw new HcloudApiError(res.status, err.code ?? "http_error", err.message ?? res.statusText, err.details);
