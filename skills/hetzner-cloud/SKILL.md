@@ -37,6 +37,25 @@ Deleting an assigned IP fails with `must_be_unassigned`.
 
 **Filtering by label:** no list tool takes a `label_selector`. Call the list tool for each resource type, including firewalls and primary IPs, then filter on `labels` yourself. List tools return every page.
 
+## DNS
+- **Zone and RRSet references:** refer to a zone by name (`example.com`) or by ID. RRSet `name` is relative to the zone: `@` is the apex, `www` is www.example.com. Use lowercase.
+- **Record values** use zone-file syntax:
+  - TXT values must be quoted, e.g. `"\"v=spf1 -all\""`.
+  - MX values look like `"10 mail.example.com."`.
+  - A record pointing at a server: use the IP from `get_server`, at `public_net.ipv4.ip`.
+- **Picking the right tool:**
+
+  | Task | Tool |
+  |---|---|
+  | Add a record | `add_rrset_records` (creates the RRSet if it's missing) |
+  | Replace all records | `set_rrset_records` |
+  | Drop one record | `remove_rrset_records` (removing the last record deletes the RRSet) |
+  | Change a record's comment | `update_rrset_records` |
+
+- **Back up before bulk changes:** `export_zonefile`, then `import_zonefile`. Import replaces every RRSet in the zone. Never import a partial file.
+- **A new zone answers nothing yet.** Tell the user to point the domain's nameservers at the registrar to `get_zone.authoritative_nameservers.assigned`.
+- **Errors:** `protected` means `change_rrset_protection` or `change_zone_protection` is on; ask the user before turning it off. `incorrect_zone_mode` means you tried a record edit on a secondary zone.
+
 ## Common mistakes
 | Symptom | Cause and fix |
 |---|---|
