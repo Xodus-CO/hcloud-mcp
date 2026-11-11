@@ -4,7 +4,6 @@ import { fileURLToPath } from "url";
 import { config as loadEnv } from "dotenv";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { OpenAPI } from "hetzner-sdk-ts";
 import { registerTools } from "./register-tools.js";
 import { registerDnsTools } from "./dns-tools.js";
 import { registerExtraTools } from "./extra-tools.js";
@@ -21,13 +20,10 @@ if (!process.env.HCLOUD_TOKEN) {
     loadEnv({ path: join(__dirname, "..", ".env") });
 }
 
-const token = process.env.HCLOUD_TOKEN;
-if (!token) {
+if (!process.env.HCLOUD_TOKEN) {
     console.error("Error: HCLOUD_TOKEN environment variable is required");
     process.exit(1);
 }
-
-OpenAPI.TOKEN = token;
 
 const server = new McpServer(
     { name: "hetzner-cloud", version: "0.3.1" },

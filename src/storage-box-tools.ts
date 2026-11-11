@@ -67,7 +67,7 @@ export function registerStorageBoxTools(server: McpServer) {
         { name: z.string().optional() },
         async (args) => withToolError(async () =>
             json(await listAll(
-                (p) => sb("GET", "/storage_box_types", { query: { ...args, page: p.page, per_page: p.perPage } }),
+                (p) => sb("GET", "/storage_box_types", { query: { ...args, ...p } }),
                 "storage_box_types",
             ))),
     );
@@ -86,7 +86,7 @@ export function registerStorageBoxTools(server: McpServer) {
         { name: z.string().optional(), label_selector: labelSelector, sort },
         async (args) => withToolError(async () =>
             json(await listAll(
-                (p) => sb("GET", "/storage_boxes", { query: { ...args, page: p.page, per_page: p.perPage } }),
+                (p) => sb("GET", "/storage_boxes", { query: { ...args, ...p } }),
                 "storage_boxes",
             ))),
     );
@@ -159,7 +159,7 @@ export function registerStorageBoxTools(server: McpServer) {
             const path = storage_box_id ? `${boxPath(storage_box_id)}/actions` : "/storage_boxes/actions";
             if (storage_box_id && query.id) throw new Error("id filter is only supported without storage_box_id");
             return json(await listAll(
-                (p) => sb("GET", path, { query: { ...query, page: p.page, per_page: p.perPage } }),
+                (p) => sb("GET", path, { query: { ...query, ...p } }),
                 "actions",
             ));
         }),

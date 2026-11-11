@@ -1,6 +1,5 @@
-// Minimal typed client for Hetzner Cloud API endpoints that hetzner-sdk-ts does not
-// cover (e.g. DNS zones / RRSets). Uses the same token as the SDK.
-import { OpenAPI } from "hetzner-sdk-ts";
+// Minimal fetch client for the Hetzner Cloud API (and the Hetzner API for Storage Boxes).
+// Reads the project token from HCLOUD_TOKEN (index.ts loads .env / exits if unset).
 
 // Cloud API (servers, networks, DNS, ...) and the Hetzner API (Storage Boxes) accept the same project token.
 export const CLOUD_API = "https://api.hetzner.cloud/v1";
@@ -21,7 +20,7 @@ export class HcloudApiError extends Error {
 }
 
 function token(): string {
-    const t = (typeof OpenAPI.TOKEN === "string" ? OpenAPI.TOKEN : undefined) ?? process.env.HCLOUD_TOKEN;
+    const t = process.env.HCLOUD_TOKEN;
     if (!t) throw new Error("HCLOUD_TOKEN is not set");
     return t;
 }

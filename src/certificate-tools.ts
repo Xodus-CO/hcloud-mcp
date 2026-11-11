@@ -30,7 +30,7 @@ export function registerCertificateTools(server: McpServer) {
         },
         async (args) => withToolError(async () => {
             const certs = await listAll(
-                (p) => hcloudRequest("GET", "/certificates", { query: { ...args, page: p.page, per_page: p.perPage } }),
+                (p) => hcloudRequest("GET", "/certificates", { query: { ...args, ...p } }),
                 "certificates",
             );
             return json(certs);

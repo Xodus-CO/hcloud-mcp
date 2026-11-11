@@ -1,29 +1,4 @@
-
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import {
-    ServersService,
-    LoadBalancersService,
-    NetworksService,
-    VolumesService,
-    FirewallsService,
-    FirewallActionsService,
-    FloatingIPsService,
-    SshKeysService,
-    ImagesService,
-    LocationsService,
-    ServerTypesService,
-    PlacementGroupsService,
-    PrimaryIPsService,
-    ServerActionsService,
-    VolumeActionsService,
-    FloatingIpActionsService,
-    LoadBalancerActionsService,
-    NetworkActionsService,
-    PricingService,
-    ActionsService,
-    LoadBalancerTypesService,
-    PrimaryIpActionsService,
-} from "hetzner-sdk-ts";
 import { z } from "zod";
 import { listAll, withToolError } from "./tool-helpers.js";
 import { hcloudRequest } from "./hcloud-api.js";
@@ -51,7 +26,7 @@ export function registerTools(server: McpServer) {
         "List all servers",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const items = await listAll((p) => ServersService.getServers(p), "servers");
+            const items = await listAll((p) => hcloudRequest("GET", "/servers", { query: p }), "servers");
             return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
@@ -61,7 +36,7 @@ export function registerTools(server: McpServer) {
         "Get a single server by ID",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await ServersService.getServers1({ id });
+            const response = await hcloudRequest("GET", `/servers/${id}`);
             return { content: [{ type: "text", text: JSON.stringify(response.server, null, 2) }] };
         })
     );
@@ -107,7 +82,7 @@ export function registerTools(server: McpServer) {
                 volumes: args.volumes,
                 labels: args.labels,
             };
-            const response = await ServersService.postServers({ requestBody });
+            const response = await hcloudRequest("POST", "/servers", { body: requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -117,7 +92,7 @@ export function registerTools(server: McpServer) {
         "Delete a server",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await ServersService.deleteServers({ id });
+            const response = await hcloudRequest("DELETE", `/servers/${id}`);
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -131,10 +106,7 @@ export function registerTools(server: McpServer) {
             upgrade_disk: z.boolean().default(true).describe("Whether to upgrade disk size. If true, cannot downgrade later."),
         },
         async ({ id, server_type, upgrade_disk }, _extra) => withToolError(async () => {
-            const response = await ServerActionsService.postServersActionsChangeType({
-                id,
-                requestBody: { server_type, upgrade_disk }
-            });
+            const response = await hcloudRequest("POST", `/servers/${id}/actions/change_type`, { body: { server_type, upgrade_disk } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -144,7 +116,7 @@ export function registerTools(server: McpServer) {
         "Power on a server",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await ServerActionsService.postServersActionsPoweron({ id });
+            const response = await hcloudRequest("POST", `/servers/${id}/actions/poweron`);
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -154,7 +126,7 @@ export function registerTools(server: McpServer) {
         "Power off a server (hard)",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await ServerActionsService.postServersActionsPoweroff({ id });
+            const response = await hcloudRequest("POST", `/servers/${id}/actions/poweroff`);
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -164,7 +136,7 @@ export function registerTools(server: McpServer) {
         "Reboot a server (soft)",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await ServerActionsService.postServersActionsReboot({ id });
+            const response = await hcloudRequest("POST", `/servers/${id}/actions/reboot`);
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -174,7 +146,7 @@ export function registerTools(server: McpServer) {
         "Shutdown a server (soft)",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await ServerActionsService.postServersActionsShutdown({ id });
+            const response = await hcloudRequest("POST", `/servers/${id}/actions/shutdown`);
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -184,7 +156,7 @@ export function registerTools(server: McpServer) {
         "Reset a server (hard)",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await ServerActionsService.postServersActionsReset({ id });
+            const response = await hcloudRequest("POST", `/servers/${id}/actions/reset`);
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -198,10 +170,7 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async ({ id, name, labels }, _extra) => withToolError(async () => {
-            const response = await ServersService.putServers({
-                id,
-                requestBody: { name, labels }
-            });
+            const response = await hcloudRequest("PUT", `/servers/${id}`, { body: { name, labels } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -214,10 +183,7 @@ export function registerTools(server: McpServer) {
             iso: z.string().describe("ID or name of the ISO"),
         },
         async ({ id, iso }, _extra) => withToolError(async () => {
-            const response = await ServerActionsService.postServersActionsAttachIso({
-                id,
-                requestBody: { iso }
-            });
+            const response = await hcloudRequest("POST", `/servers/${id}/actions/attach_iso`, { body: { iso } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -227,7 +193,7 @@ export function registerTools(server: McpServer) {
         "Detach an ISO from a server",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await ServerActionsService.postServersActionsDetachIso({ id });
+            const response = await hcloudRequest("POST", `/servers/${id}/actions/detach_iso`);
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -242,10 +208,7 @@ export function registerTools(server: McpServer) {
             alias_ips: z.array(z.string()).optional(),
         },
         async ({ id, network, ip, alias_ips }, _extra) => withToolError(async () => {
-            const response = await ServerActionsService.postServersActionsAttachToNetwork({
-                id,
-                requestBody: { network, ip, alias_ips }
-            });
+            const response = await hcloudRequest("POST", `/servers/${id}/actions/attach_to_network`, { body: { network, ip, alias_ips } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -258,10 +221,7 @@ export function registerTools(server: McpServer) {
             network: z.number().describe("ID of the network"),
         },
         async ({ id, network }, _extra) => withToolError(async () => {
-            const response = await ServerActionsService.postServersActionsDetachFromNetwork({
-                id,
-                requestBody: { network }
-            });
+            const response = await hcloudRequest("POST", `/servers/${id}/actions/detach_from_network`, { body: { network } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -272,7 +232,7 @@ export function registerTools(server: McpServer) {
         "List all load balancers",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const items = await listAll((p) => LoadBalancersService.getLoadBalancers(p), "load_balancers");
+            const items = await listAll((p) => hcloudRequest("GET", "/load_balancers", { query: p }), "load_balancers");
             return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
@@ -282,7 +242,7 @@ export function registerTools(server: McpServer) {
         "Get a single load balancer by ID",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await LoadBalancersService.getLoadBalancers1({ id });
+            const response = await hcloudRequest("GET", `/load_balancers/${id}`);
             return { content: [{ type: "text", text: JSON.stringify(response.load_balancer, null, 2) }] };
         })
     );
@@ -333,7 +293,6 @@ export function registerTools(server: McpServer) {
             if (args.public_net && args.public_interface === false) {
                 throw new Error("public_net requires the public interface (public_interface must not be false)");
             }
-            // Direct client: hetzner-sdk-ts predates public_net on create (2026-10-05).
             const response = await hcloudRequest("POST", "/load_balancers", { body: args });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
@@ -345,8 +304,10 @@ export function registerTools(server: McpServer) {
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
             // Since 2026-10-05 this returns 201 + Action (previously 204 empty).
-            const response = await LoadBalancersService.deleteLoadBalancers({ id });
-            return { content: [{ type: "text", text: JSON.stringify(response ?? { deleted: true }, null, 2) }] };
+            const response = await hcloudRequest("DELETE", `/load_balancers/${id}`);
+            // hcloudRequest returns {} for a 204 (the pre-2026-10-05 empty response).
+            const deleted = Object.keys(response).length ? response : { deleted: true };
+            return { content: [{ type: "text", text: JSON.stringify(deleted, null, 2) }] };
         })
     );
 
@@ -359,10 +320,7 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async ({ id, name, labels }, _extra) => withToolError(async () => {
-            const response = await LoadBalancersService.putLoadBalancers({
-                id,
-                requestBody: { name, labels }
-            });
+            const response = await hcloudRequest("PUT", `/load_balancers/${id}`, { body: { name, labels } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -379,10 +337,7 @@ export function registerTools(server: McpServer) {
             use_private_ip: z.boolean().optional(),
         },
         async ({ id, type, server, label_selector, ip, use_private_ip }, _extra) => withToolError(async () => {
-            const response = await LoadBalancerActionsService.postLoadBalancersActionsAddTarget({
-                id,
-                requestBody: { type, server, label_selector, ip, use_private_ip }
-            });
+            const response = await hcloudRequest("POST", `/load_balancers/${id}/actions/add_target`, { body: { type, server, label_selector, ip, use_private_ip } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -398,10 +353,7 @@ export function registerTools(server: McpServer) {
             ip: z.object({ ip: z.string() }).optional(),
         },
         async ({ id, type, server, label_selector, ip }, _extra) => withToolError(async () => {
-            const response = await LoadBalancerActionsService.postLoadBalancersActionsRemoveTarget({
-                id,
-                requestBody: { type, server, label_selector, ip }
-            });
+            const response = await hcloudRequest("POST", `/load_balancers/${id}/actions/remove_target`, { body: { type, server, label_selector, ip } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -439,10 +391,7 @@ export function registerTools(server: McpServer) {
         },
         async (args, _extra) => withToolError(async () => {
             const { id, ...body } = args;
-            const response = await LoadBalancerActionsService.postLoadBalancersActionsAddService({
-                id,
-                requestBody: body as Parameters<typeof LoadBalancerActionsService.postLoadBalancersActionsAddService>[0]["requestBody"]
-            });
+            const response = await hcloudRequest("POST", `/load_balancers/${id}/actions/add_service`, { body });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -455,10 +404,7 @@ export function registerTools(server: McpServer) {
             listen_port: z.number(),
         },
         async ({ id, listen_port }, _extra) => withToolError(async () => {
-            const response = await LoadBalancerActionsService.postLoadBalancersActionsDeleteService({
-                id,
-                requestBody: { listen_port }
-            });
+            const response = await hcloudRequest("POST", `/load_balancers/${id}/actions/delete_service`, { body: { listen_port } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -503,10 +449,7 @@ export function registerTools(server: McpServer) {
         },
         async (args, _extra) => withToolError(async () => {
             const { id, listen_port, ...body } = args;
-            const response = await LoadBalancerActionsService.postLoadBalancersActionsUpdateService({
-                id,
-                requestBody: { listen_port, ...body }
-            });
+            const response = await hcloudRequest("POST", `/load_balancers/${id}/actions/update_service`, { body: { listen_port, ...body } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -517,7 +460,7 @@ export function registerTools(server: McpServer) {
         "List all networks",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const items = await listAll((p) => NetworksService.getNetworks(p), "networks");
+            const items = await listAll((p) => hcloudRequest("GET", "/networks", { query: p }), "networks");
             return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
@@ -527,7 +470,7 @@ export function registerTools(server: McpServer) {
         "Get a single network by ID",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await NetworksService.getNetworks1({ id });
+            const response = await hcloudRequest("GET", `/networks/${id}`);
             return { content: [{ type: "text", text: JSON.stringify(response.network, null, 2) }] };
         })
     );
@@ -553,7 +496,7 @@ export function registerTools(server: McpServer) {
                 routes: args.routes,
                 labels: args.labels,
             };
-            const response = await NetworksService.postNetworks({ requestBody });
+            const response = await hcloudRequest("POST", "/networks", { body: requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -563,7 +506,7 @@ export function registerTools(server: McpServer) {
         "Delete a network",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            await NetworksService.deleteNetworks({ id });
+            await hcloudRequest("DELETE", `/networks/${id}`);
             return { content: [{ type: "text", text: "Network deleted successfully" }] };
         })
     );
@@ -577,10 +520,7 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async ({ id, name, labels }, _extra) => withToolError(async () => {
-            const response = await NetworksService.putNetworks({
-                id,
-                requestBody: { name, labels }
-            });
+            const response = await hcloudRequest("PUT", `/networks/${id}`, { body: { name, labels } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -597,10 +537,7 @@ export function registerTools(server: McpServer) {
             vswitch_id: z.number().optional().describe("Required if type is vswitch"),
         },
         async ({ id, type, network_zone, ip_range, vswitch_id }, _extra) => withToolError(async () => {
-            const response = await NetworkActionsService.postNetworksActionsAddSubnet({
-                id,
-                requestBody: { type, network_zone, ip_range, vswitch_id }
-            });
+            const response = await hcloudRequest("POST", `/networks/${id}/actions/add_subnet`, { body: { type, network_zone, ip_range, vswitch_id } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -613,10 +550,7 @@ export function registerTools(server: McpServer) {
             ip_range: z.string().describe("IP range of subnet to delete, e.g. 10.0.1.0/24"),
         },
         async ({ id, ip_range }, _extra) => withToolError(async () => {
-            const response = await NetworkActionsService.postNetworksActionsDeleteSubnet({
-                id,
-                requestBody: { ip_range }
-            });
+            const response = await hcloudRequest("POST", `/networks/${id}/actions/delete_subnet`, { body: { ip_range } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -627,7 +561,7 @@ export function registerTools(server: McpServer) {
         "List all volumes",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const items = await listAll((p) => VolumesService.getVolumes(p), "volumes");
+            const items = await listAll((p) => hcloudRequest("GET", "/volumes", { query: p }), "volumes");
             return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
@@ -637,7 +571,7 @@ export function registerTools(server: McpServer) {
         "Get a single volume by ID",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await VolumesService.getVolumes1({ id });
+            const response = await hcloudRequest("GET", `/volumes/${id}`);
             return { content: [{ type: "text", text: JSON.stringify(response.volume, null, 2) }] };
         })
     );
@@ -685,10 +619,7 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async ({ id, name, labels }, _extra) => withToolError(async () => {
-            const response = await VolumesService.putVolumes({
-                id,
-                requestBody: { name, labels }
-            });
+            const response = await hcloudRequest("PUT", `/volumes/${id}`, { body: { name, labels } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -714,7 +645,7 @@ export function registerTools(server: McpServer) {
         "Detach a volume",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await VolumeActionsService.postVolumesActionsDetach({ id });
+            const response = await hcloudRequest("POST", `/volumes/${id}/actions/detach`);
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -724,7 +655,7 @@ export function registerTools(server: McpServer) {
         "Delete a volume (must be detached; all data destroyed)",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            await VolumesService.deleteVolumes({ id });
+            await hcloudRequest("DELETE", `/volumes/${id}`);
             return { content: [{ type: "text", text: "Volume deleted successfully" }] };
         })
     );
@@ -735,7 +666,7 @@ export function registerTools(server: McpServer) {
         "List all firewalls",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const items = await listAll((p) => FirewallsService.getFirewalls(p), "firewalls");
+            const items = await listAll((p) => hcloudRequest("GET", "/firewalls", { query: p }), "firewalls");
             return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
@@ -745,7 +676,7 @@ export function registerTools(server: McpServer) {
         "Get a single firewall by ID",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await FirewallsService.getFirewalls1({ id });
+            const response = await hcloudRequest("GET", `/firewalls/${id}`);
             return { content: [{ type: "text", text: JSON.stringify(response.firewall, null, 2) }] };
         })
     );
@@ -766,7 +697,7 @@ export function registerTools(server: McpServer) {
                 labels: args.labels,
                 apply_to: args.apply_to,
             };
-            const response = await FirewallsService.postFirewalls({ requestBody: body });
+            const response = await hcloudRequest("POST", "/firewalls", { body });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -780,10 +711,7 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async ({ id, name, labels }, _extra) => withToolError(async () => {
-            const response = await FirewallsService.putFirewalls({
-                id,
-                requestBody: { name, labels }
-            });
+            const response = await hcloudRequest("PUT", `/firewalls/${id}`, { body: { name, labels } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -793,7 +721,7 @@ export function registerTools(server: McpServer) {
         "Delete a firewall (must not be in use)",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            await FirewallsService.deleteFirewalls({ id });
+            await hcloudRequest("DELETE", `/firewalls/${id}`);
             return { content: [{ type: "text", text: "Firewall deleted successfully" }] };
         })
     );
@@ -806,7 +734,7 @@ export function registerTools(server: McpServer) {
             apply_to: z.array(firewallApplyToSchema),
         },
         async ({ id, apply_to }, _extra) => withToolError(async () => {
-            const response = await FirewallActionsService.postFirewallsActionsApplyToResources({ id, requestBody: { apply_to } });
+            const response = await hcloudRequest("POST", `/firewalls/${id}/actions/apply_to_resources`, { body: { apply_to } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -822,7 +750,7 @@ export function registerTools(server: McpServer) {
             })),
         },
         async ({ id, remove_from }, _extra) => withToolError(async () => {
-            const response = await FirewallActionsService.postFirewallsActionsRemoveFromResources({ id, requestBody: { remove_from } });
+            const response = await hcloudRequest("POST", `/firewalls/${id}/actions/remove_from_resources`, { body: { remove_from } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -835,7 +763,7 @@ export function registerTools(server: McpServer) {
             rules: z.array(firewallRuleSchema),
         },
         async ({ id, rules }, _extra) => withToolError(async () => {
-            const response = await FirewallActionsService.postFirewallsActionsSetRules({ id, requestBody: { rules } });
+            const response = await hcloudRequest("POST", `/firewalls/${id}/actions/set_rules`, { body: { rules } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -846,7 +774,7 @@ export function registerTools(server: McpServer) {
         "List all floating IPs",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const items = await listAll((p) => FloatingIPsService.getFloatingIps(p), "floating_ips");
+            const items = await listAll((p) => hcloudRequest("GET", "/floating_ips", { query: p }), "floating_ips");
             return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
@@ -869,7 +797,7 @@ export function registerTools(server: McpServer) {
                 description: args.description,
                 labels: args.labels,
             };
-            const response = await FloatingIPsService.postFloatingIps({ requestBody });
+            const response = await hcloudRequest("POST", "/floating_ips", { body: requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -883,10 +811,7 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async ({ id, description, labels }, _extra) => withToolError(async () => {
-            const response = await FloatingIPsService.putFloatingIps({
-                id,
-                requestBody: { description, labels }
-            });
+            const response = await hcloudRequest("PUT", `/floating_ips/${id}`, { body: { description, labels } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -899,10 +824,7 @@ export function registerTools(server: McpServer) {
             server: z.number(),
         },
         async ({ id, server }, _extra) => withToolError(async () => {
-            const response = await FloatingIpActionsService.postFloatingIpsActionsAssign({
-                id,
-                requestBody: { server }
-            });
+            const response = await hcloudRequest("POST", `/floating_ips/${id}/actions/assign`, { body: { server } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -912,7 +834,7 @@ export function registerTools(server: McpServer) {
         "Unassign a floating IP",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await FloatingIpActionsService.postFloatingIpsActionsUnassign({ id });
+            const response = await hcloudRequest("POST", `/floating_ips/${id}/actions/unassign`);
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -922,7 +844,7 @@ export function registerTools(server: McpServer) {
         "Delete a floating IP. Must be unassigned first (unassign_floating_ip), else fails with must_be_unassigned",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            await FloatingIPsService.deleteFloatingIps({ id });
+            await hcloudRequest("DELETE", `/floating_ips/${id}`);
             return { content: [{ type: "text", text: "Floating IP deleted successfully" }] };
         })
     );
@@ -933,7 +855,7 @@ export function registerTools(server: McpServer) {
         "List all Primary IPs (static IPs bound to a location, assignable to one server)",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const items = await listAll((p) => PrimaryIPsService.getPrimaryIps(p), "primary_ips");
+            const items = await listAll((p) => hcloudRequest("GET", "/primary_ips", { query: p }), "primary_ips");
             return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
@@ -955,8 +877,7 @@ export function registerTools(server: McpServer) {
             if (hasLocation === hasAssignee) {
                 throw new Error("Provide exactly one of location or assignee_id (mutually exclusive)");
             }
-            // hetzner-sdk-ts 1.0.1 still models the removed `datacenter` field; the API
-            // (since 2026-07-01) takes `location`. The SDK passes the body through as JSON.
+            // The API takes `location` (the `datacenter` field was removed 2026-07-01).
             const requestBody = {
                 name: args.name,
                 type: args.type,
@@ -965,8 +886,8 @@ export function registerTools(server: McpServer) {
                 ...(hasAssignee ? { assignee_type: "server" as const } : {}),
                 auto_delete: args.auto_delete,
                 labels: args.labels,
-            } as unknown as Parameters<typeof PrimaryIPsService.postPrimaryIps>[0]["requestBody"];
-            const response = await PrimaryIPsService.postPrimaryIps({ requestBody });
+            };
+            const response = await hcloudRequest("POST", "/primary_ips", { body: requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -976,7 +897,7 @@ export function registerTools(server: McpServer) {
         "Get a single Primary IP by ID",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await PrimaryIPsService.getPrimaryIps1({ id });
+            const response = await hcloudRequest("GET", `/primary_ips/${id}`);
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -990,10 +911,7 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async ({ id, name, labels }, _extra) => withToolError(async () => {
-            const response = await PrimaryIPsService.putPrimaryIps({
-                id,
-                requestBody: { name, labels }
-            });
+            const response = await hcloudRequest("PUT", `/primary_ips/${id}`, { body: { name, labels } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -1003,7 +921,7 @@ export function registerTools(server: McpServer) {
         "Delete a Primary IP. Must be unassigned first (unassign_primary_ip, server powered off), else fails with must_be_unassigned",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            await PrimaryIPsService.deletePrimaryIps({ id });
+            await hcloudRequest("DELETE", `/primary_ips/${id}`);
             return { content: [{ type: "text", text: "Primary IP deleted successfully" }] };
         })
     );
@@ -1016,10 +934,7 @@ export function registerTools(server: McpServer) {
             server: z.number().describe("Server ID"),
         },
         async ({ id, server }, _extra) => withToolError(async () => {
-            const response = await PrimaryIpActionsService.postPrimaryIpsActionsAssign({
-                id,
-                requestBody: { assignee_id: server, assignee_type: "server" }
-            });
+            const response = await hcloudRequest("POST", `/primary_ips/${id}/actions/assign`, { body: { assignee_id: server, assignee_type: "server" } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -1029,7 +944,7 @@ export function registerTools(server: McpServer) {
         "Unassign a Primary IP from its server (server must be powered off)",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await PrimaryIpActionsService.postPrimaryIpsActionsUnassign({ id });
+            const response = await hcloudRequest("POST", `/primary_ips/${id}/actions/unassign`);
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -1040,7 +955,7 @@ export function registerTools(server: McpServer) {
         "List all SSH keys",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const items = await listAll((p) => SshKeysService.getSshKeys(p), "ssh_keys");
+            const items = await listAll((p) => hcloudRequest("GET", "/ssh_keys", { query: p }), "ssh_keys");
             return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
@@ -1060,7 +975,7 @@ export function registerTools(server: McpServer) {
                 public_key: args.public_key.trim(),
                 labels: args.labels,
             };
-            const response = await SshKeysService.postSshKeys({ requestBody });
+            const response = await hcloudRequest("POST", "/ssh_keys", { body: requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -1074,10 +989,7 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async ({ id, name, labels }, _extra) => withToolError(async () => {
-            const response = await SshKeysService.putSshKeys({
-                id,
-                requestBody: { name, labels }
-            });
+            const response = await hcloudRequest("PUT", `/ssh_keys/${id}`, { body: { name, labels } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -1087,7 +999,7 @@ export function registerTools(server: McpServer) {
         "Delete an SSH key",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            await SshKeysService.deleteSshKeys({ id });
+            await hcloudRequest("DELETE", `/ssh_keys/${id}`);
             return { content: [{ type: "text", text: "SSH key deleted successfully" }] };
         })
     );
@@ -1098,7 +1010,7 @@ export function registerTools(server: McpServer) {
         "List all locations",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const items = await listAll((p) => LocationsService.getLocations(p), "locations");
+            const items = await listAll((p) => hcloudRequest("GET", "/locations", { query: p }), "locations");
             return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
@@ -1108,7 +1020,7 @@ export function registerTools(server: McpServer) {
         "List all images (check each image's `deprecation` field; deprecated images can stop being usable for new servers)",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const items = await listAll((p) => ImagesService.getImages(p), "images");
+            const items = await listAll((p) => hcloudRequest("GET", "/images", { query: p }), "images");
             return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
@@ -1118,7 +1030,7 @@ export function registerTools(server: McpServer) {
         "List all server types. Per-location availability is in locations[]: available, recommended, deprecation (top-level `deprecated` was removed)",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const items = await listAll((p) => ServerTypesService.getServerTypes(p), "server_types");
+            const items = await listAll((p) => hcloudRequest("GET", "/server_types", { query: p }), "server_types");
             return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
@@ -1128,7 +1040,7 @@ export function registerTools(server: McpServer) {
         "List all load balancer types (for create_load_balancer load_balancer_type; check `deprecation`)",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const items = await listAll((p) => LoadBalancerTypesService.getLoadBalancerTypes(p), "load_balancer_types");
+            const items = await listAll((p) => hcloudRequest("GET", "/load_balancer_types", { query: p }), "load_balancer_types");
             return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
@@ -1150,13 +1062,7 @@ export function registerTools(server: McpServer) {
             per_page: z.number().optional(),
         },
         async (args, _extra) => withToolError(async () => {
-            const response = await ActionsService.getActions({
-                id: args.id,
-                status: args.status,
-                sort: args.sort,
-                page: args.page,
-                perPage: args.per_page,
-            });
+            const response = await hcloudRequest("GET", "/actions", { query: { id: args.id, status: args.status, sort: args.sort, page: args.page, per_page: args.per_page } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -1166,7 +1072,7 @@ export function registerTools(server: McpServer) {
         "Get a single action by ID (e.g. to check progress or status after create/delete)",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            const response = await ActionsService.getActions1({ id });
+            const response = await hcloudRequest("GET", `/actions/${id}`);
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -1176,7 +1082,7 @@ export function registerTools(server: McpServer) {
         "Get all prices",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const response = await PricingService.getPricing();
+            const response = await hcloudRequest("GET", "/pricing");
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -1187,7 +1093,7 @@ export function registerTools(server: McpServer) {
         "List all placement groups",
         {},
         async (_args?, _extra?) => withToolError(async () => {
-            const items = await listAll((p) => PlacementGroupsService.getPlacementGroups(p), "placement_groups");
+            const items = await listAll((p) => hcloudRequest("GET", "/placement_groups", { query: p }), "placement_groups");
             return { content: [{ type: "text", text: JSON.stringify(items, null, 2) }] };
         })
     );
@@ -1206,7 +1112,7 @@ export function registerTools(server: McpServer) {
                 type: args.type,
                 labels: args.labels,
             };
-            const response = await PlacementGroupsService.postPlacementGroups({ requestBody });
+            const response = await hcloudRequest("POST", "/placement_groups", { body: requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -1216,7 +1122,7 @@ export function registerTools(server: McpServer) {
         "Delete a placement group",
         { id: z.number() },
         async ({ id }, _extra) => withToolError(async () => {
-            await PlacementGroupsService.deletePlacementGroups({ id });
+            await hcloudRequest("DELETE", `/placement_groups/${id}`);
             return { content: [{ type: "text", text: "Placement Group deleted successfully" }] };
         })
     );
@@ -1230,10 +1136,7 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async ({ id, name, labels }, _extra) => withToolError(async () => {
-            const response = await PlacementGroupsService.putPlacementGroups({
-                id,
-                requestBody: { name, labels }
-            });
+            const response = await hcloudRequest("PUT", `/placement_groups/${id}`, { body: { name, labels } });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );

@@ -1,5 +1,4 @@
-// Cloud API endpoints added after hetzner-sdk-ts 1.0.1 (or not covered by it),
-// implemented with the direct client in hcloud-api.ts.
+// Cloud API endpoints: reverse DNS (PTR), rebuild, network members.
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { hcloudRequest } from "./hcloud-api.js";
@@ -51,7 +50,7 @@ export function registerExtraTools(server: McpServer) {
         },
         async ({ id, ...filters }) => withToolError(async () => {
             const members = await listAll(
-                (p) => hcloudRequest("GET", `/networks/${id}/members`, { query: { ...filters, page: p.page, per_page: p.perPage } }),
+                (p) => hcloudRequest("GET", `/networks/${id}/members`, { query: { ...filters, ...p } }),
                 "members",
             );
             return json(members);

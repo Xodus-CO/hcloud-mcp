@@ -144,7 +144,7 @@ export function registerActionGapTools(server: McpServer) {
                 throw new Error("include_architecture_wildcard requires architecture");
             }
             const isos = await listAll(
-                (p) => hcloudRequest("GET", "/isos", { query: { ...filters, page: p.page, per_page: p.perPage } }),
+                (p) => hcloudRequest("GET", "/isos", { query: { ...filters, ...p } }),
                 "isos",
             );
             return json(isos);

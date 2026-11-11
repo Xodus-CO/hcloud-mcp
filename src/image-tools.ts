@@ -53,7 +53,7 @@ export function registerImageTools(server: McpServer) {
         async ({ type, ...filters }) => withToolError(async () => {
             const images = await listAll(
                 (p) => hcloudRequest("GET", "/images", {
-                    query: { type: type ?? ["snapshot", "backup"], ...filters, page: p.page, per_page: p.perPage },
+                    query: { type: type ?? ["snapshot", "backup"], ...filters, ...p },
                 }),
                 "images",
             );

@@ -1,5 +1,4 @@
 // Hetzner DNS (Cloud API /zones, /zones/{id_or_name}/rrsets).
-// hetzner-sdk-ts has no DNS services, so these use the direct client in hcloud-api.ts.
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { hcloudRequest, seg } from "./hcloud-api.js";
@@ -43,7 +42,7 @@ export function registerDnsTools(server: McpServer) {
         },
         async (args) => withToolError(async () => {
             const zones = await listAll(
-                (p) => hcloudRequest("GET", "/zones", { query: { ...args, page: p.page, per_page: p.perPage } }),
+                (p) => hcloudRequest("GET", "/zones", { query: { ...args, ...p } }),
                 "zones",
             );
             return json(zones);
@@ -145,7 +144,7 @@ export function registerDnsTools(server: McpServer) {
         { zone: zoneRef, name: z.string().optional(), type: rrType.optional(), label_selector: labelSelector },
         async ({ zone, ...filters }) => withToolError(async () => {
             const rrsets = await listAll(
-                (p) => hcloudRequest("GET", `/zones/${seg(zone)}/rrsets`, { query: { ...filters, page: p.page, per_page: p.perPage } }),
+                (p) => hcloudRequest("GET", `/zones/${seg(zone)}/rrsets`, { query: { ...filters, ...p } }),
                 "rrsets",
             );
             return json(rrsets);

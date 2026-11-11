@@ -26,8 +26,7 @@
     "test:live:ops": "node scripts/test-live-server-ops.mjs",
     "test:live:actions": "node scripts/test-live-action-gaps.mjs",
     "test:live:certs": "node scripts/test-live-certificates.mjs",
-    "test:live:storage": "node scripts/test-live-storage-box.mjs",
-    "audit:api": "cross-env DRY_RUN=1 node scripts/audit-api-shapes.mjs"
+    "test:live:storage": "node scripts/test-live-storage-box.mjs"
   },
   "keywords": [
     "mcp",
@@ -45,13 +44,11 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
     "dotenv": "^17.3.1",
-    "hetzner-sdk-ts": "^1.0.1",
     "zod": "^3.23.8",
     "zod-to-json-schema": "^3.25.1"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
-    "cross-env": "^7.0.3",
     "typescript": "^5.4.5"
   }
 }

@@ -168,10 +168,10 @@ With the MCP client connected, you can ask the agent to run tools using natural 
 | File                    | Purpose                                                     |
 | ----------------------- | ----------------------------------------------------------- |
 | `src/index.ts`          | Entry point, stdio transport, `HCLOUD_TOKEN` check          |
-| `src/register-tools.ts` | Tool definitions and Hetzner API calls (uses SDK McpServer) |
+| `src/register-tools.ts` | Core tools: servers, LBs, networks, volumes, firewalls, IPs, SSH keys, info |
 | `src/extra-tools.ts`    | Newer Cloud API endpoints (reverse DNS, rebuild, network members) |
-| `src/dns-tools.ts`      | DNS zone/RRSet tools (direct API client, not in the SDK)    |
-| `src/hcloud-api.ts`     | Minimal fetch client for endpoints hetzner-sdk-ts lacks     |
+| `src/dns-tools.ts`      | DNS zone/RRSet tools                                        |
+| `src/hcloud-api.ts`     | Minimal fetch client for the Hetzner APIs (no SDK dependency) |
 | `src/action-gap-tools.ts` | Placement groups, alias IPs, LB network/type/algorithm/public interface, routes, ISOs |
 | `src/image-tools.ts`    | Snapshots, backups, image management, `change_protection` |
 | `src/server-ops-tools.ts` | Rescue, console, root password, server/LB metrics |
@@ -187,9 +187,8 @@ npm run build   # compile
 npm run start   # run (requires HCLOUD_TOKEN)
 npm run dev     # watch and recompile
 npm run test:smoke # offline: server starts, tools register, toolsets work (runs in CI)
-npm run test:api   # test list_* Hetzner API calls (requires HCLOUD_TOKEN)
+npm run test:api   # read-only checks of the API client: pagination, error format (requires HCLOUD_TOKEN, run build first)
 npm run test:mcp   # integration test: MCP client calls list_locations (requires HCLOUD_TOKEN)
-npm run audit:api  # verify create_* request body shapes (DRY_RUN=1, no resources created)
 npm run test:live:dns  # DNS create→teardown on a throwaway zone (free)
 npm run test:live:images    # snapshots, backups, protection (costs cents)
 npm run test:live:ops       # rescue, console, root password, metrics (costs cents)
