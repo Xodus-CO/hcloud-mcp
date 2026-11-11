@@ -26,7 +26,7 @@ if (!process.env.HCLOUD_TOKEN) {
 }
 
 const server = new McpServer(
-    { name: "hetzner-cloud", version: "0.3.1" },
+    { name: "hetzner-cloud", version: "0.4.0" },
     { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS }
 );
 
