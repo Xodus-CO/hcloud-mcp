@@ -3,7 +3,6 @@
 Standalone **MCP (Model Context Protocol) server** for the [Hetzner Cloud API](https://docs.hetzner.cloud/). Use it with any MCP client: Cursor, Claude Desktop, CLI tools, [smithery.ai](https://smithery.ai), or custom agents.
 
 - **Repository:** [github.com/Xodus-CO/hcloud-mcp](https://github.com/Xodus-CO/hcloud-mcp)
-- **Cursor Plugin:** [github.com/Xodus-CO/hetzner-mcp](https://github.com/Xodus-CO/hetzner-mcp) — install from the Cursor Plugin marketplace.
 - **Hetzner Cloud:** [Get started](https://hetzner.cloud/?ref=IAYKetqPnlq9) — new signups get €20 credit.
 
 ---
