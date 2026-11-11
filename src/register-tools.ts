@@ -628,6 +628,11 @@ export function registerTools(server: McpServer) {
             labels: z.record(z.string()).optional(),
         },
         async (args, _extra) => withToolError(async () => {
+            const hasLocation = args.location != null && args.location !== "";
+            if (hasLocation === (args.server != null)) {
+                throw new Error("Provide exactly one of location or server (mutually exclusive)");
+            }
+            if (args.automount && args.server == null) throw new Error("automount requires server");
             // Volume attachment is generalised to `assignee` (2026-10-27); the old
             // `server` request field is removed on 2027-10-27. Tool input stays a server ID.
             const requestBody = {
