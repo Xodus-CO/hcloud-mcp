@@ -15,7 +15,9 @@ export class HcloudApiError extends Error {
         message: string,
         public details?: unknown,
     ) {
-        super(`${code} (${status}): ${message}${details ? ` ${JSON.stringify(details)}` : ""}`);
+        // The API sends `details: {}` on most errors; only append details that carry something.
+        const hasDetails = details != null && (typeof details !== "object" || Object.keys(details).length > 0);
+        super(`${code} (${status}): ${message}${hasDetails ? ` ${JSON.stringify(details)}` : ""}`);
     }
 }
 
