@@ -1,0 +1,31 @@
+name: CI
+
+# Build + offline smoke test only. Live API suites (npm run test:live*) need a
+# Hetzner token and create billable resources, so they run locally, not here.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npm run test:smoke
+      - name: Package contents
+        run: npm pack --dry-run 2>&1 | tail -20

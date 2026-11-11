@@ -170,9 +170,18 @@ try {
     await waitActions(volResp, "create_volume");
     const vol = volResp.volume;
     await waitActions(await call("attach_volume", { id: vol.id, server: srv.id }), "attach_volume");
+    const attached = (await call("list_volumes")).find((v) => v.id === vol.id);
+    if (attached?.assignee?.type !== "server" || attached.assignee.id !== srv.id) throw new Error(`attach: assignee ${JSON.stringify(attached?.assignee)}`);
     await waitActions(await call("detach_volume", { id: vol.id }), "detach_volume");
     await call("delete_volume", { id: vol.id });
-    ok("volume create/attach/detach/delete");
+    // create_volume with server -> created already attached via assignee (#2)
+    const vol2Resp = await call("create_volume", { name: `t-vol2-${suffix}`, size: 10, server: srv.id, format: "ext4", labels: LABEL });
+    await waitActions(vol2Resp, "create_volume attached");
+    const vol2 = (await call("list_volumes")).find((v) => v.id === vol2Resp.volume.id);
+    if (vol2?.assignee?.type !== "server" || vol2.assignee.id !== srv.id) throw new Error(`create attached: assignee ${JSON.stringify(vol2?.assignee)}`);
+    await waitActions(await call("detach_volume", { id: vol2.id }), "detach vol2");
+    await call("delete_volume", { id: vol2.id });
+    ok("volume create/attach/detach/delete via assignee", `assignee {type:server,id:${srv.id}}`);
 
     // --- Floating IP assign/unassign/delete ---
     const fip = (await call("create_floating_ip", { type: "ipv4", home_location: best.location, labels: LABEL })).floating_ip;

@@ -76,6 +76,7 @@ Call `get_server_metrics` or `get_load_balancer_metrics` with `last_minutes` and
 - **Irreversible actions:** `rollback_storage_box_snapshot` discards newer snapshots and all data written since. `delete_storage_box` removes everything. Confirm first, and suggest `change_storage_box_protection`.
 
 ## Labels and network changes
+- **Volumes:** see which server a volume is attached to in `assignee` (`{type:"server", id}`). The old `server` field disappears on 2027-10-27.
 - **Labels:** every `update_*` replaces the whole label set. Read the current labels and merge.
 - **Alias IPs:** `change_server_alias_ips` replaces the whole list. Send the existing IPs plus the new one.
 - **Placement groups:** `add_server_to_placement_group` needs the server powered off. Removing works while it runs.
