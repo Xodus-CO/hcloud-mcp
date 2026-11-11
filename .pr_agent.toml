@@ -1,0 +1,36 @@
+# Project context for the self-hosted PR-Agent (pr-agent-gouda). Instructions only:
+# model, effort, token and findings limits are set on the server.
+# These strings replace the server-wide extra_instructions, so they restate the baseline.
+
+[pr_reviewer]
+# PRs here routinely link deferred-work issues ("→ #12") that they do not close.
+# Ticket analysis kept flagging those links as non-compliance.
+require_ticket_analysis_review = false
+
+extra_instructions = """\
+Project: hcloud-mcp, a TypeScript MCP server (stdio) wrapping the Hetzner Cloud API (api.hetzner.cloud) and the Hetzner API for Storage Boxes (api.hetzner.com).
+- Report only high-confidence issues: correctness, security, data loss, secret leakage, broken tool behavior. Skip style, naming and speculative refactors.
+- Hetzner API claims (field names, enums, required params, pagination, response codes) must be checked against the official specs: https://docs.hetzner.cloud/cloud.spec.json and https://docs.hetzner.cloud/hetzner.spec.json. Do not flag an enum, field or pagination behavior as wrong unless the spec contradicts the code. Not every list endpoint is paginated (e.g. Storage Box subaccounts and snapshots are not).
+- hetzner-sdk-ts 1.0.1 is stale (it still models removed fields such as datacenter). Code that bypasses it with src/hcloud-api.ts, or casts request bodies around its types, is deliberate. Do not suggest moving back to SDK types.
+- Tool handlers must not echo secrets (root_password, console wss_url and password, Storage Box passwords, certificate private keys) anywhere except the API response returned to the user. Flag any logging or persisting of them.
+- Destructive tools (delete_*, rebuild_server, import_zonefile, rollback_storage_box_snapshot, disable_server_backups) must say so in their description. Missing warnings are worth flagging.
+- Live tests in scripts/test-live-*.mjs create real resources by design. Check that their cleanup only touches resources carrying the current run's hcloud-mcp-test=<runId> label; that is the invariant that matters. Do not ask for mocks or unit tests instead.
+- Before claiming a missing import, guard or validation, consider that it may be outside the diff hunk. Flag it only if the hunk shows the gap.
+- If a PR comment rebuts a finding with spec or live-test evidence, do not raise that finding again unless new commits change that code.
+- Linked issues marked as deferred or follow-up are not part of the PR's scope.
+"""
+
+[pr_code_suggestions]
+extra_instructions = """\
+Project: hcloud-mcp, a TypeScript MCP server for the Hetzner Cloud API and the Storage Box API.
+- Suggest only correctness, security, secret-handling or data-loss fixes. No style, comments, docstrings, logging or refactors.
+- Check API-shape suggestions against https://docs.hetzner.cloud/cloud.spec.json and https://docs.hetzner.cloud/hetzner.spec.json. Do not add pagination to endpoints the spec doesn't paginate.
+- Do not suggest replacing src/hcloud-api.ts calls with hetzner-sdk-ts, or tightening casts that work around the SDK's stale types.
+- Do not repeat a suggestion that a PR comment already rejected with evidence.
+"""
+
+[ignore]
+glob = [
+    "dist/**",
+    "package-lock.json",
+]
