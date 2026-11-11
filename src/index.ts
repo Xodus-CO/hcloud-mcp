@@ -8,6 +8,11 @@ import { OpenAPI } from "hetzner-sdk-ts";
 import { registerTools } from "./register-tools.js";
 import { registerDnsTools } from "./dns-tools.js";
 import { registerExtraTools } from "./extra-tools.js";
+import { registerStorageBoxTools } from "./storage-box-tools.js";
+import { registerCertificateTools } from "./certificate-tools.js";
+import { registerImageTools } from "./image-tools.js";
+import { registerServerOpsTools } from "./server-ops-tools.js";
+import { registerActionGapTools } from "./action-gap-tools.js";
 import { SERVER_INSTRUCTIONS } from "./instructions.js";
 
 // Load .env from project root (parent of dist) so IDE-spawned server finds token when env isn't set
@@ -32,6 +37,11 @@ const server = new McpServer(
 registerTools(server);
 registerDnsTools(server);
 registerExtraTools(server);
+registerStorageBoxTools(server);
+registerCertificateTools(server);
+registerImageTools(server);
+registerServerOpsTools(server);
+registerActionGapTools(server);
 
 async function main() {
     const transport = new StdioServerTransport();
