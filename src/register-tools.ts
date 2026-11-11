@@ -289,25 +289,52 @@ export function registerTools(server: McpServer) {
 
     server.tool(
         "create_load_balancer",
-        "Create a new load balancer",
+        "Create a load balancer in a location or network_zone. Optionally attach existing Primary IPs (public_net), join a private network, and define services/targets in one call. Returns load_balancer + Action. Primary IPs on an LB cannot be changed after creation and stay assigned for its lifetime",
         {
             name: z.string(),
+            load_balancer_type: z.string().describe("e.g. lb11 (see list_load_balancer_types)"),
+            location: z.string().optional().describe("Location name, e.g. fsn1. Required when using public_net (Primary IPs are location-bound)"),
+            network_zone: z.string().optional().describe("e.g. eu-central; alternative to location"),
             algorithm: z.object({ type: z.enum(["round_robin", "least_connections"]) }).optional(),
-            location: z.string(),
-            load_balancer_type: z.string(),
-            network_zone: z.string().optional(),
+            public_interface: z.boolean().optional().describe("Default true. false = private-only; then also pass network"),
+            public_net: z
+                .object({
+                    ipv4: z.number().nullable().optional().describe("ID of an unassigned IPv4 Primary IP in the same location"),
+                    ipv6: z.number().nullable().optional().describe("ID of an unassigned IPv6 Primary IP in the same location"),
+                })
+                .optional()
+                .describe("Use existing Primary IPs instead of auto-allocated addresses (only with the public interface enabled)"),
+            network: z.number().optional().describe("Private network ID to attach on creation"),
+            services: z
+                .array(z.object({
+                    protocol: z.enum(["tcp", "http", "https"]),
+                    listen_port: z.number().optional(),
+                    destination_port: z.number().optional(),
+                    proxyprotocol: z.boolean().default(false),
+                    health_check: z.record(z.unknown()).optional().describe("Same shape as add_load_balancer_service.health_check"),
+                    http: z.record(z.unknown()).optional().describe("Same shape as update_load_balancer_service.http (certificates, redirect_http, sticky_sessions, timeout_idle, ...)"),
+                }))
+                .optional(),
+            targets: z
+                .array(z.object({
+                    type: z.enum(["server", "label_selector", "ip"]),
+                    server: z.object({ id: z.number() }).optional(),
+                    label_selector: z.object({ selector: z.string() }).optional(),
+                    ip: z.object({ ip: z.string() }).optional(),
+                    use_private_ip: z.boolean().optional(),
+                }))
+                .optional(),
             labels: z.record(z.string()).optional(),
         },
         async (args, _extra) => withToolError(async () => {
-            const requestBody = {
-                name: args.name,
-                load_balancer_type: args.load_balancer_type,
-                location: args.location,
-                algorithm: args.algorithm,
-                network_zone: args.network_zone,
-                labels: args.labels,
-            };
-            const response = await LoadBalancersService.postLoadBalancers({ requestBody });
+            const hasLocation = args.location != null && args.location !== "";
+            const hasZone = args.network_zone != null && args.network_zone !== "";
+            if (!hasLocation && !hasZone) throw new Error("Provide location or network_zone");
+            if (args.public_net && args.public_interface === false) {
+                throw new Error("public_net requires the public interface (public_interface must not be false)");
+            }
+            // Direct client: hetzner-sdk-ts predates public_net on create (2026-10-05).
+            const response = await hcloudRequest("POST", "/load_balancers", { body: args });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
