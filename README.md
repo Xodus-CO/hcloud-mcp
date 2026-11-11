@@ -128,6 +128,7 @@ Updated in 0.2.0 for Hetzner Cloud API changes through November 2026 ([changelog
 - `create_primary_ip` takes `location` instead of `datacenter`.
 - `delete_load_balancer` now returns the deletion Action.
 - `add_network_subnet` no longer offers the deprecated `server` type. Use `cloud`.
+- **0.3.1:** `create_volume` and `attach_volume` send `assignee: {type: "server", id}` instead of the deprecated `server` field, which the API removes on 2027-10-27. Tool inputs are unchanged. Read `assignee` in volume responses.
 - List tools now return every page. Previously they silently stopped at the first 25 items.
 - Floating IPs and Primary IPs must be unassigned before you delete them.
 - `list_actions` requires `id`, because Hetzner removed project-wide action listing. Use `get_action` to poll.
@@ -185,6 +186,7 @@ With the MCP client connected, you can ask the agent to run tools using natural 
 npm run build   # compile
 npm run start   # run (requires HCLOUD_TOKEN)
 npm run dev     # watch and recompile
+npm run test:smoke # offline: server starts, tools register, toolsets work (runs in CI)
 npm run test:api   # test list_* Hetzner API calls (requires HCLOUD_TOKEN)
 npm run test:mcp   # integration test: MCP client calls list_locations (requires HCLOUD_TOKEN)
 npm run audit:api  # verify create_* request body shapes (DRY_RUN=1, no resources created)

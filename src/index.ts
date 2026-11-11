@@ -30,7 +30,7 @@ if (!token) {
 OpenAPI.TOKEN = token;
 
 const server = new McpServer(
-    { name: "hetzner-cloud", version: "0.3.0" },
+    { name: "hetzner-cloud", version: "0.3.1" },
     { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS }
 );
 

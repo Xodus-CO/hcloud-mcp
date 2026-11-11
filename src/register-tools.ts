@@ -26,6 +26,7 @@ import {
 } from "hetzner-sdk-ts";
 import { z } from "zod";
 import { listAll, withToolError } from "./tool-helpers.js";
+import { hcloudRequest } from "./hcloud-api.js";
 
 // Firewall rule: direction, protocol required; source_ips for 'in', destination_ips for 'out'; port for tcp/udp
 const firewallRuleSchema = z.object({
@@ -616,27 +617,34 @@ export function registerTools(server: McpServer) {
 
     server.tool(
         "create_volume",
-        "Create a new volume",
+        "Create a new volume (size in GB, min 10). Give location, or server to create it in the server's location and attach it right away. In responses, read assignee ({type, id}); the old server field goes away on 2027-10-27",
         {
             name: z.string(),
-            size: z.number(),
-            automount: z.boolean().optional(),
-            format: z.string().optional(),
-            location: z.string().optional(),
-            server: z.number().optional(),
+            size: z.number().describe("Size in GB (min 10)"),
+            automount: z.boolean().optional().describe("Only with server: mount automatically"),
+            format: z.enum(["xfs", "ext4"]).optional(),
+            location: z.string().optional().describe("Location name, e.g. fsn1 (omit if server set)"),
+            server: z.number().optional().describe("Server ID to attach to on creation (omit if location set)"),
             labels: z.record(z.string()).optional(),
         },
         async (args, _extra) => withToolError(async () => {
+            const hasLocation = args.location != null && args.location !== "";
+            if (hasLocation === (args.server != null)) {
+                throw new Error("Provide exactly one of location or server (mutually exclusive)");
+            }
+            if (args.automount && args.server == null) throw new Error("automount requires server");
+            // Volume attachment is generalised to `assignee` (2026-10-27); the old
+            // `server` request field is removed on 2027-10-27. Tool input stays a server ID.
             const requestBody = {
                 name: args.name,
                 size: args.size,
                 automount: args.automount,
                 format: args.format,
                 location: args.location,
-                server: args.server,
+                ...(args.server != null ? { assignee: { type: "server", id: args.server } } : {}),
                 labels: args.labels,
             };
-            const response = await VolumesService.postVolumes({ requestBody });
+            const response = await hcloudRequest("POST", "/volumes", { body: requestBody });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
     );
@@ -660,16 +668,15 @@ export function registerTools(server: McpServer) {
 
     server.tool(
         "attach_volume",
-        "Attach a volume to a server",
+        "Attach a volume to a server (must be in the same location). Returns an Action",
         {
             id: z.number(),
             server: z.number(),
             automount: z.boolean().optional(),
         },
         async ({ id, server, automount }, _extra) => withToolError(async () => {
-            const response = await VolumeActionsService.postVolumesActionsAttach({
-                id,
-                requestBody: { server, automount }
+            const response = await hcloudRequest("POST", `/volumes/${id}/actions/attach`, {
+                body: { assignee: { type: "server", id: server }, automount },
             });
             return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
         })
