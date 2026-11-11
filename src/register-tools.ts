@@ -293,7 +293,7 @@ export function registerTools(server: McpServer) {
         {
             name: z.string(),
             load_balancer_type: z.string().describe("e.g. lb11 (see list_load_balancer_types)"),
-            location: z.string().optional().describe("Location name, e.g. fsn1. Required when using public_net (Primary IPs are location-bound)"),
+            location: z.string().optional().describe("Location name, e.g. fsn1. With public_net, pass the Primary IPs' location; a mismatch fails with primary_ip_location_mismatch"),
             network_zone: z.string().optional().describe("e.g. eu-central; alternative to location"),
             algorithm: z.object({ type: z.enum(["round_robin", "least_connections"]) }).optional(),
             public_interface: z.boolean().optional().describe("Default true. false = private-only; then also pass network"),

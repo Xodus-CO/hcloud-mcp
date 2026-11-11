@@ -222,8 +222,11 @@ try {
     ok("delete_load_balancer returns Action", `command=${delLb.action.command}`);
     const pipAfter = await call("get_primary_ip", { id: lbPip.id });
     const pa = pipAfter.primary_ip ?? pipAfter;
-    console.log(`     LB primary IP after LB delete: assignee_type=${pa.assignee_type}`);
-    if (pa.assignee_id == null) await call("delete_primary_ip", { id: lbPip.id });
+    if (pa.assignee_id != null || pa.assignee_type !== "unassigned") {
+        throw new Error(`LB Primary IP still assigned after LB delete: ${pa.assignee_type}/${pa.assignee_id}`);
+    }
+    await call("delete_primary_ip", { id: lbPip.id });
+    ok("LB Primary IP released (unassigned) after LB delete, then deleted");
 
     // --- Teardown in skill order ---
     await waitActions(await call("delete_server", { id: srv.id }), "delete_server");
