@@ -6,7 +6,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { HETZNER_API, hcloudRequest } from "./hcloud-api.js";
-import { json, listAll, withToolError } from "./tool-helpers.js";
+import { ADDITIVE, ADDITIVE_IDEMPOTENT, DESTRUCTIVE_IDEMPOTENT, READ_ONLY, json, listAll, withToolError } from "./tool-helpers.js";
 
 type Method = "GET" | "POST" | "PUT" | "DELETE";
 type Opts = { query?: Record<string, any>; body?: unknown };
@@ -61,10 +61,13 @@ const CONFIRM = "Irreversible; confirm with the user first";
 
 export function registerStorageBoxTools(server: McpServer) {
     // --- Storage Box Types ---
-    server.tool(
+    server.registerTool(
         "list_storage_box_types",
-        "List Storage Box Types (bx11, bx21, ...) with size, snapshot/subaccount limits and per-location hourly/monthly prices and setup fees",
-        { name: z.string().optional() },
+        {
+            description: "List Storage Box Types (bx11, bx21, ...) with size, snapshot/subaccount limits and per-location hourly/monthly prices and setup fees",
+            inputSchema: { name: z.string().optional() },
+            annotations: READ_ONLY,
+        },
         async (args) => withToolError(async () =>
             json(await listAll(
                 (p) => sb("GET", "/storage_box_types", { query: { ...args, ...p } }),
@@ -72,18 +75,24 @@ export function registerStorageBoxTools(server: McpServer) {
             ))),
     );
 
-    server.tool(
+    server.registerTool(
         "get_storage_box_type",
-        "Get a Storage Box Type by ID",
-        { id: z.number().int().positive() },
+        {
+            description: "Get a Storage Box Type by ID",
+            inputSchema: { id: z.number().int().positive() },
+            annotations: READ_ONLY,
+        },
         async ({ id }) => withToolError(async () => json((await sb("GET", `/storage_box_types/${id}`)).storage_box_type)),
     );
 
     // --- Storage Boxes ---
-    server.tool(
+    server.registerTool(
         "list_storage_boxes",
-        "List Storage Boxes (all pages). Optional filters by exact name and label selector",
-        { name: z.string().optional(), label_selector: labelSelector, sort },
+        {
+            description: "List Storage Boxes (all pages). Optional filters by exact name and label selector",
+            inputSchema: { name: z.string().optional(), label_selector: labelSelector, sort },
+            annotations: READ_ONLY,
+        },
         async (args) => withToolError(async () =>
             json(await listAll(
                 (p) => sb("GET", "/storage_boxes", { query: { ...args, ...p } }),
@@ -91,24 +100,30 @@ export function registerStorageBoxTools(server: McpServer) {
             ))),
     );
 
-    server.tool(
+    server.registerTool(
         "get_storage_box",
-        "Get a Storage Box: status (initializing/active/locked), type, location, username, server FQDN, access settings, snapshot plan, protection, disk usage stats. username/server/system are null while initializing",
-        { id: boxId },
+        {
+            description: "Get a Storage Box: status (initializing/active/locked), type, location, username, server FQDN, access settings, snapshot plan, protection, disk usage stats. username/server/system are null while initializing",
+            inputSchema: { id: boxId },
+            annotations: READ_ONLY,
+        },
         async ({ id }) => withToolError(async () => json((await sb("GET", boxPath(id))).storage_box)),
     );
 
-    server.tool(
+    server.registerTool(
         "create_storage_box",
-        `Create a Storage Box (billed hourly, capped at the monthly price; see list_storage_box_types for prices). ${POLL}; provisioning can take several minutes and username/server stay null until status is active`,
         {
-            name: z.string().describe("Storage Box name"),
-            location: z.string().describe("Location ID or name, e.g. fsn1, hel1 (see list_storage_box_types prices for availability)"),
-            storage_box_type: z.string().describe("Storage Box Type ID or name, e.g. bx11"),
-            password,
-            labels: labels.optional(),
-            ssh_keys: z.array(z.string()).optional().describe("SSH public keys in OpenSSH format to install"),
-            access_settings: z.object(boxAccess).optional().describe("Initial access settings"),
+            description: `Create a Storage Box (billed hourly, capped at the monthly price; see list_storage_box_types for prices). ${POLL}; provisioning can take several minutes and username/server stay null until status is active`,
+            inputSchema: {
+                name: z.string().describe("Storage Box name"),
+                location: z.string().describe("Location ID or name, e.g. fsn1, hel1 (see list_storage_box_types prices for availability)"),
+                storage_box_type: z.string().describe("Storage Box Type ID or name, e.g. bx11"),
+                password,
+                labels: labels.optional(),
+                ssh_keys: z.array(z.string()).optional().describe("SSH public keys in OpenSSH format to install"),
+                access_settings: z.object(boxAccess).optional().describe("Initial access settings"),
+            },
+            annotations: ADDITIVE,
         },
         async (args) => withToolError(async () => {
             const res = await sb("POST", "/storage_boxes", { body: args });
@@ -116,44 +131,59 @@ export function registerStorageBoxTools(server: McpServer) {
         }),
     );
 
-    server.tool(
+    server.registerTool(
         "update_storage_box",
-        "Update a Storage Box's name and/or labels (labels replace the whole set)",
-        { id: boxId, name: z.string().optional(), labels: labels.optional() },
+        {
+            description: "Update a Storage Box's name and/or labels (labels replace the whole set)",
+            inputSchema: { id: boxId, name: z.string().optional(), labels: labels.optional() },
+            annotations: ADDITIVE_IDEMPOTENT,
+        },
         async ({ id, ...body }) => withToolError(async () => json((await sb("PUT", boxPath(id), { body })).storage_box)),
     );
 
-    server.tool(
+    server.registerTool(
         "delete_storage_box",
-        `Delete a Storage Box and ALL its data, subaccounts and snapshots. ${CONFIRM}. Fails if delete protection is enabled. ${POLL}`,
-        { id: boxId },
+        {
+            description: `Delete a Storage Box and ALL its data, subaccounts and snapshots. ${CONFIRM}. Fails if delete protection is enabled. ${POLL}`,
+            inputSchema: { id: boxId },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ id }) => withToolError(async () => json(await sb("DELETE", boxPath(id)))),
     );
 
-    server.tool(
+    server.registerTool(
         "list_storage_box_folders",
-        "List folders in a Storage Box directory (not files). Box must be active",
-        { id: boxId, path: z.string().optional().describe('Relative path to list (default: root)') },
+        {
+            description: "List folders in a Storage Box directory (not files). Box must be active",
+            inputSchema: { id: boxId, path: z.string().optional().describe('Relative path to list (default: root)') },
+            annotations: READ_ONLY,
+        },
         async ({ id, path }) => withToolError(async () =>
             json((await sb("GET", `${boxPath(id)}/folders`, { query: { path } })).folders)),
     );
 
     // --- Actions ---
-    server.tool(
+    server.registerTool(
         "get_storage_box_action",
-        "Get a Storage Box Action by ID (create/delete/reset_password/snapshot/subaccount actions). This is the documented endpoint for Storage Box Actions (get_action currently also resolves them)",
-        { id: z.number().int().positive().describe("Action ID") },
+        {
+            description: "Get a Storage Box Action by ID (create/delete/reset_password/snapshot/subaccount actions). This is the documented endpoint for Storage Box Actions (get_action currently also resolves them)",
+            inputSchema: { id: z.number().int().positive().describe("Action ID") },
+            annotations: READ_ONLY,
+        },
         async ({ id }) => withToolError(async () => json((await sb("GET", `/storage_boxes/actions/${id}`)).action)),
     );
 
-    server.tool(
+    server.registerTool(
         "list_storage_box_actions",
-        "List Actions (all pages). With storage_box_id: actions for that box. Without: actions across all Storage Boxes (optionally filtered by id)",
         {
-            storage_box_id: boxId.optional(),
-            id: z.array(z.number().int().positive()).optional().describe("Filter by action IDs (Storage-Box-wide listing)"),
-            status: actionStatus,
-            sort,
+            description: "List Actions (all pages). With storage_box_id: actions for that box. Without: actions across all Storage Boxes (optionally filtered by id)",
+            inputSchema: {
+                storage_box_id: boxId.optional(),
+                id: z.array(z.number().int().positive()).optional().describe("Filter by action IDs (Storage-Box-wide listing)"),
+                status: actionStatus,
+                sort,
+            },
+            annotations: READ_ONLY,
         },
         async ({ storage_box_id, ...query }) => withToolError(async () => {
             const path = storage_box_id ? `${boxPath(storage_box_id)}/actions` : "/storage_boxes/actions";
@@ -165,144 +195,189 @@ export function registerStorageBoxTools(server: McpServer) {
         }),
     );
 
-    server.tool(
+    server.registerTool(
         "change_storage_box_protection",
-        `Enable/disable delete protection for a Storage Box. ${POLL}`,
-        { id: boxId, delete: z.boolean().describe("Prevent deletion") },
+        {
+            description: `Enable/disable delete protection for a Storage Box. ${POLL}`,
+            inputSchema: { id: boxId, delete: z.boolean().describe("Prevent deletion") },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ id, ...body }) => withToolError(async () =>
             json(await sb("POST", `${boxPath(id)}/actions/change_protection`, { body }))),
     );
 
-    server.tool(
+    server.registerTool(
         "change_storage_box_type",
-        `Upgrade/downgrade a Storage Box to another type (changes billing). Cannot downgrade below current usage. ${POLL}`,
-        { id: boxId, storage_box_type: z.string().describe("Target Storage Box Type ID or name, e.g. bx21") },
+        {
+            description: `Upgrade/downgrade a Storage Box to another type (changes billing). Cannot downgrade below current usage. ${POLL}`,
+            inputSchema: { id: boxId, storage_box_type: z.string().describe("Target Storage Box Type ID or name, e.g. bx21") },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ id, ...body }) => withToolError(async () =>
             json(await sb("POST", `${boxPath(id)}/actions/change_type`, { body }))),
     );
 
-    server.tool(
+    server.registerTool(
         "reset_storage_box_password",
-        `Set a new password for the Storage Box main account (existing clients using the old password lose access). ${POLL}`,
-        { id: boxId, password },
+        {
+            description: `Set a new password for the Storage Box main account (existing clients using the old password lose access). ${POLL}`,
+            inputSchema: { id: boxId, password },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ id, ...body }) => withToolError(async () =>
             json(await sb("POST", `${boxPath(id)}/actions/reset_password`, { body }))),
     );
 
-    server.tool(
+    server.registerTool(
         "update_storage_box_access_settings",
-        `Update the main account's access settings (partial: omitted fields are unchanged). ${POLL}`,
-        { id: boxId, ...boxAccess },
+        {
+            description: `Update the main account's access settings (partial: omitted fields are unchanged). ${POLL}`,
+            inputSchema: { id: boxId, ...boxAccess },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ id, ...body }) => withToolError(async () => {
             if (Object.keys(body).length === 0) throw new Error("Provide at least one access setting");
             return json(await sb("POST", `${boxPath(id)}/actions/update_access_settings`, { body }));
         }),
     );
 
-    server.tool(
+    server.registerTool(
         "enable_storage_box_snapshot_plan",
-        `Enable (or replace) the automatic snapshot plan. Runs at hour:minute UTC, optionally only on day_of_week (1=Mon..7=Sun) and/or day_of_month; null/omitted = every day. Oldest automatic snapshots beyond max_snapshots are deleted. ${POLL}`,
         {
-            id: boxId,
-            max_snapshots: z.number().int().min(1).describe("Snapshots to keep (<= the type's automatic_snapshot_limit)"),
-            hour: z.number().int().min(0).max(23).describe("Hour (UTC)"),
-            minute: z.number().int().min(0).max(59).describe("Minute (UTC)"),
-            day_of_week: z.number().int().min(1).max(7).nullable().optional().describe("1=Monday..7=Sunday; null = every day"),
-            day_of_month: z.number().int().min(1).max(31).nullable().optional().describe("Day of month; null = every day"),
+            description: `Enable (or replace) the automatic snapshot plan. Runs at hour:minute UTC, optionally only on day_of_week (1=Mon..7=Sun) and/or day_of_month; null/omitted = every day. Oldest automatic snapshots beyond max_snapshots are deleted. ${POLL}`,
+            inputSchema: {
+                id: boxId,
+                max_snapshots: z.number().int().min(1).describe("Snapshots to keep (<= the type's automatic_snapshot_limit)"),
+                hour: z.number().int().min(0).max(23).describe("Hour (UTC)"),
+                minute: z.number().int().min(0).max(59).describe("Minute (UTC)"),
+                day_of_week: z.number().int().min(1).max(7).nullable().optional().describe("1=Monday..7=Sunday; null = every day"),
+                day_of_month: z.number().int().min(1).max(31).nullable().optional().describe("Day of month; null = every day"),
+            },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
         },
         async ({ id, ...body }) => withToolError(async () =>
             json(await sb("POST", `${boxPath(id)}/actions/enable_snapshot_plan`, { body }))),
     );
 
-    server.tool(
+    server.registerTool(
         "disable_storage_box_snapshot_plan",
-        `Disable the automatic snapshot plan. Existing automatic snapshots are kept (delete them manually). ${POLL}`,
-        { id: boxId },
+        {
+            description: `Disable the automatic snapshot plan. Existing automatic snapshots are kept (delete them manually). ${POLL}`,
+            inputSchema: { id: boxId },
+            annotations: ADDITIVE_IDEMPOTENT,
+        },
         async ({ id }) => withToolError(async () =>
             json(await sb("POST", `${boxPath(id)}/actions/disable_snapshot_plan`))),
     );
 
-    server.tool(
+    server.registerTool(
         "rollback_storage_box_snapshot",
-        `Roll a Storage Box back to a snapshot. Deletes all newer snapshots and ALL data written since the snapshot. ${CONFIRM}. ${POLL}`,
-        { id: boxId, snapshot: z.string().describe("Snapshot ID or name") },
+        {
+            description: `Roll a Storage Box back to a snapshot. Deletes all newer snapshots and ALL data written since the snapshot. ${CONFIRM}. ${POLL}`,
+            inputSchema: { id: boxId, snapshot: z.string().describe("Snapshot ID or name") },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ id, ...body }) => withToolError(async () =>
             json(await sb("POST", `${boxPath(id)}/actions/rollback_snapshot`, { body }))),
     );
 
     // --- Subaccounts ---
-    server.tool(
+    server.registerTool(
         "list_storage_box_subaccounts",
-        "List subaccounts of a Storage Box (username, home_directory, access settings, server FQDN)",
-        { id: boxId, name: z.string().optional(), username: z.string().optional(), label_selector: labelSelector, sort },
+        {
+            description: "List subaccounts of a Storage Box (username, home_directory, access settings, server FQDN)",
+            inputSchema: { id: boxId, name: z.string().optional(), username: z.string().optional(), label_selector: labelSelector, sort },
+            annotations: READ_ONLY,
+        },
         async ({ id, ...query }) => withToolError(async () =>
             json((await sb("GET", `${boxPath(id)}/subaccounts`, { query })).subaccounts)),
     );
 
-    server.tool(
+    server.registerTool(
         "get_storage_box_subaccount",
-        "Get a Storage Box subaccount",
-        { id: boxId, subaccount_id: subaccountId },
+        {
+            description: "Get a Storage Box subaccount",
+            inputSchema: { id: boxId, subaccount_id: subaccountId },
+            annotations: READ_ONLY,
+        },
         async ({ id, subaccount_id }) => withToolError(async () =>
             json((await sb("GET", subPath(id, subaccount_id))).subaccount)),
     );
 
-    server.tool(
+    server.registerTool(
         "create_storage_box_subaccount",
-        `Create a subaccount: a separate login restricted to home_directory inside the box (shares the box's quota). Username is assigned by Hetzner (<box-username>-subN). Returns {subaccount: {id, storage_box}, action}; ${POLL}, then get_storage_box_subaccount for details`,
         {
-            id: boxId,
-            home_directory: homeDirectory,
-            password,
-            name: z.string().optional().describe("Defaults to the generated username"),
-            description: z.string().optional(),
-            labels: labels.optional(),
-            access_settings: z.object(subAccess).optional(),
+            description: `Create a subaccount: a separate login restricted to home_directory inside the box (shares the box's quota). Username is assigned by Hetzner (<box-username>-subN). Returns {subaccount: {id, storage_box}, action}; ${POLL}, then get_storage_box_subaccount for details`,
+            inputSchema: {
+                id: boxId,
+                home_directory: homeDirectory,
+                password,
+                name: z.string().optional().describe("Defaults to the generated username"),
+                description: z.string().optional(),
+                labels: labels.optional(),
+                access_settings: z.object(subAccess).optional(),
+            },
+            annotations: ADDITIVE,
         },
         async ({ id, ...body }) => withToolError(async () => json(await sb("POST", `${boxPath(id)}/subaccounts`, { body }))),
     );
 
-    server.tool(
+    server.registerTool(
         "update_storage_box_subaccount",
-        "Update a subaccount's name, description and/or labels (labels replace the whole set). Use change_storage_box_subaccount_home_directory / update_storage_box_subaccount_access_settings for those",
         {
-            id: boxId,
-            subaccount_id: subaccountId,
-            name: z.string().optional(),
-            description: z.string().optional(),
-            labels: labels.optional(),
+            description: "Update a subaccount's name, description and/or labels (labels replace the whole set). Use change_storage_box_subaccount_home_directory / update_storage_box_subaccount_access_settings for those",
+            inputSchema: {
+                id: boxId,
+                subaccount_id: subaccountId,
+                name: z.string().optional(),
+                description: z.string().optional(),
+                labels: labels.optional(),
+            },
+            annotations: ADDITIVE_IDEMPOTENT,
         },
         async ({ id, subaccount_id, ...body }) => withToolError(async () =>
             json((await sb("PUT", subPath(id, subaccount_id), { body })).subaccount)),
     );
 
-    server.tool(
+    server.registerTool(
         "delete_storage_box_subaccount",
-        `Delete a subaccount (its login stops working; files in its home directory remain in the main account). ${CONFIRM}. ${POLL}`,
-        { id: boxId, subaccount_id: subaccountId },
+        {
+            description: `Delete a subaccount (its login stops working; files in its home directory remain in the main account). ${CONFIRM}. ${POLL}`,
+            inputSchema: { id: boxId, subaccount_id: subaccountId },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ id, subaccount_id }) => withToolError(async () => json(await sb("DELETE", subPath(id, subaccount_id)))),
     );
 
-    server.tool(
+    server.registerTool(
         "change_storage_box_subaccount_home_directory",
-        `Change a subaccount's home directory (created if missing). ${POLL}`,
-        { id: boxId, subaccount_id: subaccountId, home_directory: homeDirectory },
+        {
+            description: `Change a subaccount's home directory (created if missing). ${POLL}`,
+            inputSchema: { id: boxId, subaccount_id: subaccountId, home_directory: homeDirectory },
+            annotations: ADDITIVE_IDEMPOTENT,
+        },
         async ({ id, subaccount_id, ...body }) => withToolError(async () =>
             json(await sb("POST", `${subPath(id, subaccount_id)}/actions/change_home_directory`, { body }))),
     );
 
-    server.tool(
+    server.registerTool(
         "reset_storage_box_subaccount_password",
-        `Set a new password for a subaccount. ${POLL}`,
-        { id: boxId, subaccount_id: subaccountId, password },
+        {
+            description: `Set a new password for a subaccount. ${POLL}`,
+            inputSchema: { id: boxId, subaccount_id: subaccountId, password },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ id, subaccount_id, ...body }) => withToolError(async () =>
             json(await sb("POST", `${subPath(id, subaccount_id)}/actions/reset_subaccount_password`, { body }))),
     );
 
-    server.tool(
+    server.registerTool(
         "update_storage_box_subaccount_access_settings",
-        `Update a subaccount's access settings incl. readonly (partial: omitted fields are unchanged). ${POLL}`,
-        { id: boxId, subaccount_id: subaccountId, ...subAccess },
+        {
+            description: `Update a subaccount's access settings incl. readonly (partial: omitted fields are unchanged). ${POLL}`,
+            inputSchema: { id: boxId, subaccount_id: subaccountId, ...subAccess },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ id, subaccount_id, ...body }) => withToolError(async () => {
             if (Object.keys(body).length === 0) throw new Error("Provide at least one access setting");
             return json(await sb("POST", `${subPath(id, subaccount_id)}/actions/update_access_settings`, { body }));
@@ -310,41 +385,56 @@ export function registerStorageBoxTools(server: McpServer) {
     );
 
     // --- Snapshots ---
-    server.tool(
+    server.registerTool(
         "list_storage_box_snapshots",
-        "List snapshots of a Storage Box (manual and automatic; is_automatic filters)",
-        { id: boxId, name: z.string().optional(), label_selector: labelSelector, is_automatic: z.boolean().optional(), sort },
+        {
+            description: "List snapshots of a Storage Box (manual and automatic; is_automatic filters)",
+            inputSchema: { id: boxId, name: z.string().optional(), label_selector: labelSelector, is_automatic: z.boolean().optional(), sort },
+            annotations: READ_ONLY,
+        },
         async ({ id, ...query }) => withToolError(async () =>
             json((await sb("GET", `${boxPath(id)}/snapshots`, { query })).snapshots)),
     );
 
-    server.tool(
+    server.registerTool(
         "get_storage_box_snapshot",
-        "Get a Storage Box snapshot (name, description, size stats, is_automatic)",
-        { id: boxId, snapshot_id: snapshotId },
+        {
+            description: "Get a Storage Box snapshot (name, description, size stats, is_automatic)",
+            inputSchema: { id: boxId, snapshot_id: snapshotId },
+            annotations: READ_ONLY,
+        },
         async ({ id, snapshot_id }) => withToolError(async () =>
             json((await sb("GET", snapPath(id, snapshot_id))).snapshot)),
     );
 
-    server.tool(
+    server.registerTool(
         "create_storage_box_snapshot",
-        `Create a manual snapshot (limited by the type's snapshot_limit). Returns {snapshot: {id, storage_box}, action}; ${POLL}, then get_storage_box_snapshot for details`,
-        { id: boxId, description: z.string().optional(), labels: labels.optional() },
+        {
+            description: `Create a manual snapshot (limited by the type's snapshot_limit). Returns {snapshot: {id, storage_box}, action}; ${POLL}, then get_storage_box_snapshot for details`,
+            inputSchema: { id: boxId, description: z.string().optional(), labels: labels.optional() },
+            annotations: ADDITIVE,
+        },
         async ({ id, ...body }) => withToolError(async () => json(await sb("POST", `${boxPath(id)}/snapshots`, { body }))),
     );
 
-    server.tool(
+    server.registerTool(
         "update_storage_box_snapshot",
-        "Update a snapshot's description and/or labels (labels replace the whole set)",
-        { id: boxId, snapshot_id: snapshotId, description: z.string().optional(), labels: labels.optional() },
+        {
+            description: "Update a snapshot's description and/or labels (labels replace the whole set)",
+            inputSchema: { id: boxId, snapshot_id: snapshotId, description: z.string().optional(), labels: labels.optional() },
+            annotations: ADDITIVE_IDEMPOTENT,
+        },
         async ({ id, snapshot_id, ...body }) => withToolError(async () =>
             json((await sb("PUT", snapPath(id, snapshot_id), { body })).snapshot)),
     );
 
-    server.tool(
+    server.registerTool(
         "delete_storage_box_snapshot",
-        `Delete a snapshot. ${CONFIRM}. ${POLL}`,
-        { id: boxId, snapshot_id: snapshotId },
+        {
+            description: `Delete a snapshot. ${CONFIRM}. ${POLL}`,
+            inputSchema: { id: boxId, snapshot_id: snapshotId },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ id, snapshot_id }) => withToolError(async () => json(await sb("DELETE", snapPath(id, snapshot_id)))),
     );
 }

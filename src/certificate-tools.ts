@@ -4,7 +4,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { hcloudRequest } from "./hcloud-api.js";
-import { json, listAll, withToolError } from "./tool-helpers.js";
+import { ADDITIVE, ADDITIVE_IDEMPOTENT, DESTRUCTIVE_IDEMPOTENT, READ_ONLY, json, listAll, withToolError } from "./tool-helpers.js";
 
 const certId = z.number().int().describe("Certificate ID");
 const certType = z.enum(["uploaded", "managed"]);
@@ -20,13 +20,16 @@ const USAGE =
     "Certificates are referenced by ID in Load Balancer HTTPS services: http.certificates in add_load_balancer_service / update_load_balancer_service";
 
 export function registerCertificateTools(server: McpServer) {
-    server.tool(
+    server.registerTool(
         "list_certificates",
-        "List TLS certificates (all pages). Optional filters: name, label_selector, type. Each includes domain_names, not_valid_after, fingerprint, managed status and used_by (load balancers using it)",
         {
-            name: z.string().optional().describe("Exact certificate name"),
-            label_selector: z.string().optional().describe("Label selector, e.g. env=prod"),
-            type: z.array(certType).optional().describe("Filter by type(s)"),
+            description: "List TLS certificates (all pages). Optional filters: name, label_selector, type. Each includes domain_names, not_valid_after, fingerprint, managed status and used_by (load balancers using it)",
+            inputSchema: {
+                name: z.string().optional().describe("Exact certificate name"),
+                label_selector: z.string().optional().describe("Label selector, e.g. env=prod"),
+                type: z.array(certType).optional().describe("Filter by type(s)"),
+            },
+            annotations: READ_ONLY,
         },
         async (args) => withToolError(async () => {
             const certs = await listAll(
@@ -37,28 +40,34 @@ export function registerCertificateTools(server: McpServer) {
         }),
     );
 
-    server.tool(
+    server.registerTool(
         "get_certificate",
-        "Get a TLS certificate: PEM chain (public), domain_names, validity window, fingerprint, used_by, and for managed certs status.issuance / status.renewal / status.error",
-        { id: certId },
+        {
+            description: "Get a TLS certificate: PEM chain (public), domain_names, validity window, fingerprint, used_by, and for managed certs status.issuance / status.renewal / status.error",
+            inputSchema: { id: certId },
+            annotations: READ_ONLY,
+        },
         async ({ id }) => withToolError(async () => json((await hcloudRequest("GET", `/certificates/${id}`)).certificate)),
     );
 
-    server.tool(
+    server.registerTool(
         "create_certificate",
-        "Create a TLS certificate. type \"uploaded\" (default): provide certificate (PEM, leaf first then chain) and private_key (PEM); " +
-            "supported keys RSA 2048/3072/4096 or ECDSA P-256/P-384; you must renew it yourself before not_valid_after. " +
-            "type \"managed\": provide domain_names; Hetzner requests and auto-renews a Let's Encrypt cert. " +
-            MANAGED_REQUIREMENTS +
-            ". Returns {certificate, action}: action tracks managed issuance (poll get_action), null for uploaded. " +
-            USAGE,
         {
-            name: z.string().describe("Unique name within the project"),
-            type: certType.default("uploaded"),
-            certificate: z.string().optional().describe("uploaded only: certificate + chain in PEM, each cert certifying the preceding one"),
-            private_key: z.string().optional().describe("uploaded only: private key in PEM. Sent to the API only; never returned"),
-            domain_names: z.array(z.string()).optional().describe('managed only: domains to include, e.g. ["example.com", "www.example.com"]'),
-            labels: labels.optional(),
+            description: "Create a TLS certificate. type \"uploaded\" (default): provide certificate (PEM, leaf first then chain) and private_key (PEM); " +
+                "supported keys RSA 2048/3072/4096 or ECDSA P-256/P-384; you must renew it yourself before not_valid_after. " +
+                "type \"managed\": provide domain_names; Hetzner requests and auto-renews a Let's Encrypt cert. " +
+                MANAGED_REQUIREMENTS +
+                ". Returns {certificate, action}: action tracks managed issuance (poll get_action), null for uploaded. " +
+                USAGE,
+            inputSchema: {
+                name: z.string().describe("Unique name within the project"),
+                type: certType.default("uploaded"),
+                certificate: z.string().optional().describe("uploaded only: certificate + chain in PEM, each cert certifying the preceding one"),
+                private_key: z.string().optional().describe("uploaded only: private key in PEM. Sent to the API only; never returned"),
+                domain_names: z.array(z.string()).optional().describe('managed only: domains to include, e.g. ["example.com", "www.example.com"]'),
+                labels: labels.optional(),
+            },
+            annotations: ADDITIVE,
         },
         async (args) => withToolError(async () => {
             const { name, type, certificate, private_key, domain_names, labels } = args;
@@ -76,32 +85,41 @@ export function registerCertificateTools(server: McpServer) {
         }),
     );
 
-    server.tool(
+    server.registerTool(
         "update_certificate",
-        "Rename a certificate and/or replace its labels (labels overwrite the whole set). The certificate content cannot be changed; to rotate an uploaded cert, create a new one, point the load balancer service at it, then delete the old one",
-        { id: certId, name: z.string().optional(), labels: labels.optional() },
+        {
+            description: "Rename a certificate and/or replace its labels (labels overwrite the whole set). The certificate content cannot be changed; to rotate an uploaded cert, create a new one, point the load balancer service at it, then delete the old one",
+            inputSchema: { id: certId, name: z.string().optional(), labels: labels.optional() },
+            annotations: ADDITIVE_IDEMPOTENT,
+        },
         async ({ id, name, labels }) => withToolError(async () => {
             if (name === undefined && labels === undefined) throw new Error("Provide name and/or labels");
             return json((await hcloudRequest("PUT", `/certificates/${id}`, { body: { name, labels } })).certificate);
         }),
     );
 
-    server.tool(
+    server.registerTool(
         "delete_certificate",
-        "Delete a certificate. Irreversible; confirm with the user first. Check used_by (get_certificate) first: load balancer HTTPS services referencing it should be switched to another certificate",
-        { id: certId },
+        {
+            description: "Delete a certificate. Irreversible; confirm with the user first. Check used_by (get_certificate) first: load balancer HTTPS services referencing it should be switched to another certificate",
+            inputSchema: { id: certId },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ id }) => withToolError(async () => {
             await hcloudRequest("DELETE", `/certificates/${id}`);
             return json({ deleted: id });
         }),
     );
 
-    server.tool(
+    server.registerTool(
         "retry_certificate",
-        "Retry a failed issuance or renewal of a managed certificate (only when status.issuance or status.renewal is \"failed\"; see status.error for the cause and fix it first). " +
-            MANAGED_REQUIREMENTS +
-            ". Returns an Action (poll get_action)",
-        { id: certId },
+        {
+            description: "Retry a failed issuance or renewal of a managed certificate (only when status.issuance or status.renewal is \"failed\"; see status.error for the cause and fix it first). " +
+                MANAGED_REQUIREMENTS +
+                ". Returns an Action (poll get_action)",
+            inputSchema: { id: certId },
+            annotations: ADDITIVE,
+        },
         async ({ id }) => withToolError(async () => json(await hcloudRequest("POST", `/certificates/${id}/actions/retry`))),
     );
 }

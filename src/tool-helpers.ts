@@ -1,4 +1,19 @@
 // Shared helpers for tool modules.
+import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
+
+// MCP tool annotations (hints for clients). Each tool picks one explicitly at registration.
+// Every tool calls the external Hetzner API, so openWorldHint is always true. The spec
+// defaults destructiveHint to true, so mutating tools always set it explicitly.
+/** Reads only; changes nothing. */
+export const READ_ONLY: ToolAnnotations = { readOnlyHint: true, openWorldHint: true };
+/** Creates or triggers something new on each call; loses nothing. */
+export const ADDITIVE: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };
+/** Sets/attaches to a given value; repeating it has no further effect; loses nothing. */
+export const ADDITIVE_IDEMPOTENT: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true };
+/** Can lose data or availability, and repeating it acts again (reboot, reset, rebuild). */
+export const DESTRUCTIVE: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true };
+/** Can lose data or availability; repeating it has no further effect (deletes, detaches, replaces). */
+export const DESTRUCTIVE_IDEMPOTENT: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true };
 
 // Errors from hcloudRequest are HcloudApiError, already formatted as
 // "<code> (<status>): <message> <details>".

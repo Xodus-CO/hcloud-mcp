@@ -2,7 +2,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { hcloudRequest, seg } from "./hcloud-api.js";
-import { json, listAll, withToolError } from "./tool-helpers.js";
+import { ADDITIVE, ADDITIVE_IDEMPOTENT, DESTRUCTIVE_IDEMPOTENT, READ_ONLY, json, listAll, withToolError } from "./tool-helpers.js";
 
 const zoneRef = z.string().describe("Zone ID or name, e.g. example.com");
 const rrName = z
@@ -32,13 +32,16 @@ const rrsetPath = (zone: string, name: string, type: string) => `/zones/${seg(zo
 
 export function registerDnsTools(server: McpServer) {
     // --- Zones ---
-    server.tool(
+    server.registerTool(
         "list_zones",
-        "List DNS zones (all pages). Optional filters by name, mode, label selector",
         {
-            name: z.string().optional(),
-            mode: z.enum(["primary", "secondary"]).optional(),
-            label_selector: labelSelector,
+            description: "List DNS zones (all pages). Optional filters by name, mode, label selector",
+            inputSchema: {
+                name: z.string().optional(),
+                mode: z.enum(["primary", "secondary"]).optional(),
+                label_selector: labelSelector,
+            },
+            annotations: READ_ONLY,
         },
         async (args) => withToolError(async () => {
             const zones = await listAll(
@@ -49,27 +52,33 @@ export function registerDnsTools(server: McpServer) {
         }),
     );
 
-    server.tool(
+    server.registerTool(
         "get_zone",
-        "Get a DNS zone (status, nameservers it is authoritative on, delegation status, record count)",
-        { zone: zoneRef },
+        {
+            description: "Get a DNS zone (status, nameservers it is authoritative on, delegation status, record count)",
+            inputSchema: { zone: zoneRef },
+            annotations: READ_ONLY,
+        },
         async ({ zone }) => withToolError(async () => json((await hcloudRequest("GET", `/zones/${seg(zone)}`)).zone)),
     );
 
-    server.tool(
+    server.registerTool(
         "create_zone",
-        'Create a DNS zone. mode "primary" = Hetzner hosts the records (optionally seed with rrsets or a zonefile); "secondary" = Hetzner pulls from primary_nameservers via AXFR. Returns zone + Action. After creating, delegate the domain to the zone\'s authoritative_nameservers at your registrar',
         {
-            name: z.string().describe("Domain name, e.g. example.com (no trailing dot)"),
-            mode: z.enum(["primary", "secondary"]).default("primary"),
-            ttl: ttl.optional().describe("Default TTL for records without their own TTL (default 3600)"),
-            labels: labels.optional(),
-            primary_nameservers: z.array(nameserver).optional().describe("Required for mode=secondary"),
-            rrsets: z
-                .array(z.object({ name: rrName, type: rrType, ttl: ttl.nullable().optional(), records, labels: labels.optional() }))
-                .optional()
-                .describe("Initial RRSets (primary only; mutually exclusive with zonefile)"),
-            zonefile: z.string().optional().describe("BIND zone file to import (primary only; mutually exclusive with rrsets)"),
+            description: 'Create a DNS zone. mode "primary" = Hetzner hosts the records (optionally seed with rrsets or a zonefile); "secondary" = Hetzner pulls from primary_nameservers via AXFR. Returns zone + Action. After creating, delegate the domain to the zone\'s authoritative_nameservers at your registrar',
+            inputSchema: {
+                name: z.string().describe("Domain name, e.g. example.com (no trailing dot)"),
+                mode: z.enum(["primary", "secondary"]).default("primary"),
+                ttl: ttl.optional().describe("Default TTL for records without their own TTL (default 3600)"),
+                labels: labels.optional(),
+                primary_nameservers: z.array(nameserver).optional().describe("Required for mode=secondary"),
+                rrsets: z
+                    .array(z.object({ name: rrName, type: rrType, ttl: ttl.nullable().optional(), records, labels: labels.optional() }))
+                    .optional()
+                    .describe("Initial RRSets (primary only; mutually exclusive with zonefile)"),
+                zonefile: z.string().optional().describe("BIND zone file to import (primary only; mutually exclusive with rrsets)"),
+            },
+            annotations: ADDITIVE,
         },
         async (args) => withToolError(async () => {
             if (args.rrsets && args.zonefile) throw new Error("Provide rrsets OR zonefile, not both");
@@ -80,68 +89,92 @@ export function registerDnsTools(server: McpServer) {
         }),
     );
 
-    server.tool(
+    server.registerTool(
         "update_zone",
-        "Update a zone's labels (replaces all labels)",
-        { zone: zoneRef, labels },
+        {
+            description: "Update a zone's labels (replaces all labels)",
+            inputSchema: { zone: zoneRef, labels },
+            annotations: ADDITIVE_IDEMPOTENT,
+        },
         async ({ zone, labels }) => withToolError(async () =>
             json((await hcloudRequest("PUT", `/zones/${seg(zone)}`, { body: { labels } })).zone)),
     );
 
-    server.tool(
+    server.registerTool(
         "delete_zone",
-        "Delete a DNS zone and ALL its records. Irreversible; confirm with the user first. Returns an Action",
-        { zone: zoneRef },
+        {
+            description: "Delete a DNS zone and ALL its records. Irreversible; confirm with the user first. Returns an Action",
+            inputSchema: { zone: zoneRef },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ zone }) => withToolError(async () => json(await hcloudRequest("DELETE", `/zones/${seg(zone)}`))),
     );
 
-    server.tool(
+    server.registerTool(
         "export_zonefile",
-        "Export a primary zone as a BIND zone file (good for backups or reviewing all records at once)",
-        { zone: zoneRef },
+        {
+            description: "Export a primary zone as a BIND zone file (good for backups or reviewing all records at once)",
+            inputSchema: { zone: zoneRef },
+            annotations: READ_ONLY,
+        },
         async ({ zone }) => withToolError(async () => {
             const res = await hcloudRequest("GET", `/zones/${seg(zone)}/zonefile`);
             return { content: [{ type: "text", text: res.zonefile ?? JSON.stringify(res, null, 2) }] };
         }),
     );
 
-    server.tool(
+    server.registerTool(
         "import_zonefile",
-        "Replace ALL records of a primary zone with a BIND zone file. Destructive for records not in the file; export_zonefile first as a backup. Returns an Action",
-        { zone: zoneRef, zonefile: z.string() },
+        {
+            description: "Replace ALL records of a primary zone with a BIND zone file. Destructive for records not in the file; export_zonefile first as a backup. Returns an Action",
+            inputSchema: { zone: zoneRef, zonefile: z.string() },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ zone, zonefile }) => withToolError(async () =>
             json(await hcloudRequest("POST", `/zones/${seg(zone)}/actions/import_zonefile`, { body: { zonefile } }))),
     );
 
-    server.tool(
+    server.registerTool(
         "change_zone_ttl",
-        "Change a zone's default TTL (applies to RRSets without their own TTL). Returns an Action",
-        { zone: zoneRef, ttl },
+        {
+            description: "Change a zone's default TTL (applies to RRSets without their own TTL). Returns an Action",
+            inputSchema: { zone: zoneRef, ttl },
+            annotations: ADDITIVE_IDEMPOTENT,
+        },
         async ({ zone, ttl }) => withToolError(async () =>
             json(await hcloudRequest("POST", `/zones/${seg(zone)}/actions/change_ttl`, { body: { ttl } }))),
     );
 
-    server.tool(
+    server.registerTool(
         "change_zone_primary_nameservers",
-        "Set the primary nameservers a secondary zone transfers from (replaces the list). Returns an Action",
-        { zone: zoneRef, primary_nameservers: z.array(nameserver).min(1) },
+        {
+            description: "Set the primary nameservers a secondary zone transfers from (replaces the list). Returns an Action",
+            inputSchema: { zone: zoneRef, primary_nameservers: z.array(nameserver).min(1) },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ zone, primary_nameservers }) => withToolError(async () =>
             json(await hcloudRequest("POST", `/zones/${seg(zone)}/actions/change_primary_nameservers`, { body: { primary_nameservers } }))),
     );
 
-    server.tool(
+    server.registerTool(
         "change_zone_protection",
-        "Enable/disable delete protection on a zone. Returns an Action",
-        { zone: zoneRef, delete: z.boolean() },
+        {
+            description: "Enable/disable delete protection on a zone. Returns an Action",
+            inputSchema: { zone: zoneRef, delete: z.boolean() },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ zone, delete: del }) => withToolError(async () =>
             json(await hcloudRequest("POST", `/zones/${seg(zone)}/actions/change_protection`, { body: { delete: del } }))),
     );
 
     // --- RRSets ---
-    server.tool(
+    server.registerTool(
         "list_rrsets",
-        "List record sets (RRSets) in a zone (all pages). Filter by name and/or type",
-        { zone: zoneRef, name: z.string().optional(), type: rrType.optional(), label_selector: labelSelector },
+        {
+            description: "List record sets (RRSets) in a zone (all pages). Filter by name and/or type",
+            inputSchema: { zone: zoneRef, name: z.string().optional(), type: rrType.optional(), label_selector: labelSelector },
+            annotations: READ_ONLY,
+        },
         async ({ zone, ...filters }) => withToolError(async () => {
             const rrsets = await listAll(
                 (p) => hcloudRequest("GET", `/zones/${seg(zone)}/rrsets`, { query: { ...filters, ...p } }),
@@ -151,85 +184,115 @@ export function registerDnsTools(server: McpServer) {
         }),
     );
 
-    server.tool(
+    server.registerTool(
         "get_rrset",
-        "Get one RRSet by name and type",
-        { zone: zoneRef, name: rrName, type: rrType },
+        {
+            description: "Get one RRSet by name and type",
+            inputSchema: { zone: zoneRef, name: rrName, type: rrType },
+            annotations: READ_ONLY,
+        },
         async ({ zone, name, type }) => withToolError(async () =>
             json((await hcloudRequest("GET", rrsetPath(zone, name, type))).rrset)),
     );
 
-    server.tool(
+    server.registerTool(
         "create_rrset",
-        "Create an RRSet (all records sharing one name+type). Fails if it already exists; use add_rrset_records or set_rrset_records to change an existing one. Returns rrset + Action",
-        { zone: zoneRef, name: rrName, type: rrType, records, ttl: ttl.nullable().optional().describe("Omit/null = zone default"), labels: labels.optional() },
+        {
+            description: "Create an RRSet (all records sharing one name+type). Fails if it already exists; use add_rrset_records or set_rrset_records to change an existing one. Returns rrset + Action",
+            inputSchema: { zone: zoneRef, name: rrName, type: rrType, records, ttl: ttl.nullable().optional().describe("Omit/null = zone default"), labels: labels.optional() },
+            annotations: ADDITIVE,
+        },
         async ({ zone, ...body }) => withToolError(async () =>
             json(await hcloudRequest("POST", `/zones/${seg(zone)}/rrsets`, { body }))),
     );
 
-    server.tool(
+    server.registerTool(
         "update_rrset",
-        "Update an RRSet's labels (replaces all labels). To change records use set/add/remove_rrset_records",
-        { zone: zoneRef, name: rrName, type: rrType, labels },
+        {
+            description: "Update an RRSet's labels (replaces all labels). To change records use set/add/remove_rrset_records",
+            inputSchema: { zone: zoneRef, name: rrName, type: rrType, labels },
+            annotations: ADDITIVE_IDEMPOTENT,
+        },
         async ({ zone, name, type, labels }) => withToolError(async () =>
             json((await hcloudRequest("PUT", rrsetPath(zone, name, type), { body: { labels } })).rrset)),
     );
 
-    server.tool(
+    server.registerTool(
         "delete_rrset",
-        "Delete an RRSet and all its records. Returns an Action",
-        { zone: zoneRef, name: rrName, type: rrType },
+        {
+            description: "Delete an RRSet and all its records. Returns an Action",
+            inputSchema: { zone: zoneRef, name: rrName, type: rrType },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ zone, name, type }) => withToolError(async () =>
             json(await hcloudRequest("DELETE", rrsetPath(zone, name, type)))),
     );
 
-    server.tool(
+    server.registerTool(
         "set_rrset_records",
-        "Replace all records of an RRSet with the given list. Returns an Action",
-        { zone: zoneRef, name: rrName, type: rrType, records },
+        {
+            description: "Replace all records of an RRSet with the given list. Returns an Action",
+            inputSchema: { zone: zoneRef, name: rrName, type: rrType, records },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ zone, name, type, records }) => withToolError(async () =>
             json(await hcloudRequest("POST", `${rrsetPath(zone, name, type)}/actions/set_records`, { body: { records } }))),
     );
 
-    server.tool(
+    server.registerTool(
         "add_rrset_records",
-        "Add records to an RRSet, creating the RRSet if it does not exist. Returns an Action",
-        { zone: zoneRef, name: rrName, type: rrType, records, ttl: ttl.nullable().optional().describe("Used only if the RRSet is created") },
+        {
+            description: "Add records to an RRSet, creating the RRSet if it does not exist. Returns an Action",
+            inputSchema: { zone: zoneRef, name: rrName, type: rrType, records, ttl: ttl.nullable().optional().describe("Used only if the RRSet is created") },
+            annotations: ADDITIVE_IDEMPOTENT,
+        },
         async ({ zone, name, type, records, ttl }) => withToolError(async () =>
             json(await hcloudRequest("POST", `${rrsetPath(zone, name, type)}/actions/add_records`, { body: { records, ttl } }))),
     );
 
-    server.tool(
+    server.registerTool(
         "remove_rrset_records",
-        "Remove specific records (matched by value) from an RRSet. Removing the last record deletes the RRSet. Returns an Action",
-        { zone: zoneRef, name: rrName, type: rrType, records },
+        {
+            description: "Remove specific records (matched by value) from an RRSet. Removing the last record deletes the RRSet. Returns an Action",
+            inputSchema: { zone: zoneRef, name: rrName, type: rrType, records },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ zone, name, type, records }) => withToolError(async () =>
             json(await hcloudRequest("POST", `${rrsetPath(zone, name, type)}/actions/remove_records`, { body: { records } }))),
     );
 
-    server.tool(
+    server.registerTool(
         "update_rrset_records",
-        "Update the comments of existing records (matched by value). Cannot change values; use set_rrset_records for that",
         {
-            zone: zoneRef, name: rrName, type: rrType,
-            records: z.array(z.object({ value: z.string(), comment: z.string() })).min(1),
+            description: "Update the comments of existing records (matched by value). Cannot change values; use set_rrset_records for that",
+            inputSchema: {
+                zone: zoneRef, name: rrName, type: rrType,
+                records: z.array(z.object({ value: z.string(), comment: z.string() })).min(1),
+            },
+            annotations: ADDITIVE_IDEMPOTENT,
         },
         async ({ zone, name, type, records }) => withToolError(async () =>
             json(await hcloudRequest("POST", `${rrsetPath(zone, name, type)}/actions/update_records`, { body: { records } }))),
     );
 
-    server.tool(
+    server.registerTool(
         "change_rrset_ttl",
-        "Change an RRSet's TTL. ttl is required: a number of seconds, or null to fall back to the zone default. Returns an Action",
-        { zone: zoneRef, name: rrName, type: rrType, ttl: ttl.nullable() },
+        {
+            description: "Change an RRSet's TTL. ttl is required: a number of seconds, or null to fall back to the zone default. Returns an Action",
+            inputSchema: { zone: zoneRef, name: rrName, type: rrType, ttl: ttl.nullable() },
+            annotations: ADDITIVE_IDEMPOTENT,
+        },
         async ({ zone, name, type, ttl }) => withToolError(async () =>
             json(await hcloudRequest("POST", `${rrsetPath(zone, name, type)}/actions/change_ttl`, { body: { ttl } }))),
     );
 
-    server.tool(
+    server.registerTool(
         "change_rrset_protection",
-        "Enable/disable change protection on an RRSet (protected RRSets cannot be modified or deleted). Returns an Action",
-        { zone: zoneRef, name: rrName, type: rrType, change: z.boolean() },
+        {
+            description: "Enable/disable change protection on an RRSet (protected RRSets cannot be modified or deleted). Returns an Action",
+            inputSchema: { zone: zoneRef, name: rrName, type: rrType, change: z.boolean() },
+            annotations: DESTRUCTIVE_IDEMPOTENT,
+        },
         async ({ zone, name, type, change }) => withToolError(async () =>
             json(await hcloudRequest("POST", `${rrsetPath(zone, name, type)}/actions/change_protection`, { body: { change } }))),
     );
