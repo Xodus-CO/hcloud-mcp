@@ -1,5 +1,7 @@
 # HCloud MCP
 
+[![Hcloud MCP server](https://mcprush.com/badge/hcloud-mcp/card.svg)](https://mcprush.com/to/hcloud-mcp?ref=badge)
+
 Standalone **MCP (Model Context Protocol) server** for the [Hetzner Cloud API](https://docs.hetzner.cloud/). Use it with any MCP client: Cursor, Claude Desktop, CLI tools, [smithery.ai](https://smithery.ai), or custom agents.
 
 - **Repository:** [github.com/Xodus-CO/hcloud-mcp](https://github.com/Xodus-CO/hcloud-mcp)
@@ -75,6 +77,7 @@ The server exposes Hetzner Cloud API operations as MCP tools:
 | **Primary IPs**        | `list_primary_ips`, `create_primary_ip`, `get_primary_ip`, `update_primary_ip`, `delete_primary_ip`; `assign_primary_ip`, `unassign_primary_ip` (server must be off)                                                                                                                                   |
 | **SSH Keys**           | `list_ssh_keys`, `create_ssh_key`, `update_ssh_key`, `delete_ssh_key`                                                                                                                                                                                                                                  |
 | **Placement Groups**   | `list_placement_groups`, `create_placement_group`, `update_placement_group`, `delete_placement_group`                                                                                                                                                                                                  |
+| **DNS** | `list_zones`, `get_zone`, `create_zone`, `update_zone`, `delete_zone`; `export_zonefile`, `import_zonefile`; `change_zone_ttl`, `change_zone_primary_nameservers`, `change_zone_protection`; `list_rrsets`, `get_rrset`, `create_rrset`, `update_rrset`, `delete_rrset`; `set_rrset_records`, `add_rrset_records`, `remove_rrset_records`, `update_rrset_records`, `change_rrset_ttl`, `change_rrset_protection` |
 | **Metadata & actions** | `list_locations`, `list_images`, `list_server_types`, `list_load_balancer_types`, `get_pricing`; `list_actions`, `get_action` (poll async operations)                                                                                                                              |
 
 > **Note:** Subnets (not networks) are scoped to a `network_zone` (e.g., `eu-central`). Each Subnet has a `network_zone`; all Subnets within a Network share the same `network_zone`. Servers must be created in locations that match the Subnet's `network_zone`, so resources in the Network are constrained by the shared subnet `network_zone`.
@@ -107,7 +110,7 @@ Updated in 0.2.0 for Hetzner Cloud API changes through November 2026 ([changelog
 - Floating IPs and Primary IPs must be unassigned before you delete them.
 - `list_actions` requires `id`, because Hetzner removed project-wide action listing. Use `get_action` to poll.
 
-New API features that aren't wrapped yet, such as DNS zones, Storage Boxes, network members, and LB Primary IPs, are tracked in [issues](https://github.com/Xodus-CO/hcloud-mcp/issues).
+New API features that aren't wrapped yet, such as Storage Boxes, network members, and LB Primary IPs, are tracked in [issues](https://github.com/Xodus-CO/hcloud-mcp/issues).
 
 ## Usage examples
 
@@ -123,6 +126,8 @@ With the MCP client connected, you can ask the agent to run tools using natural 
 - _List load balancer types_
 - _Show current pricing for cpx31 servers_
 - _Get status of action 12345_
+- _Add an A record for www.example.com pointing to my web-01 server_
+- _Export the zone file for example.com_
 
 ### Complex
 
@@ -141,6 +146,8 @@ With the MCP client connected, you can ask the agent to run tools using natural 
 | ----------------------- | ----------------------------------------------------------- |
 | `src/index.ts`          | Entry point, stdio transport, `HCLOUD_TOKEN` check          |
 | `src/register-tools.ts` | Tool definitions and Hetzner API calls (uses SDK McpServer) |
+| `src/dns-tools.ts`      | DNS zone/RRSet tools (direct API client, not in the SDK)    |
+| `src/hcloud-api.ts`     | Minimal fetch client for endpoints hetzner-sdk-ts lacks     |
 | `src/instructions.ts`   | Server instructions sent to MCP clients at initialize       |
 | `skills/hetzner-cloud/` | Agent skill (SKILL.md) for driving this server safely        |
 
@@ -153,6 +160,7 @@ npm run dev     # watch and recompile
 npm run test:api   # test list_* Hetzner API calls (requires HCLOUD_TOKEN)
 npm run test:mcp   # integration test: MCP client calls list_locations (requires HCLOUD_TOKEN)
 npm run audit:api  # verify create_* request body shapes (DRY_RUN=1, no resources created)
+npm run test:live:dns  # DNS create→teardown on a throwaway zone (free)
 npm run test:live  # full create→teardown cycle via MCP (COSTS a few cents; resources get a unique per-run hcloud-mcp-test label, auto-cleaned)
 ```
 

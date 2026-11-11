@@ -19,3 +19,6 @@ mcp.json
 
 # Lockfile (optional; omit for smaller package)
 package-lock.json
+
+# Test/audit scripts (repo only)
+scripts/

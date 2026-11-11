@@ -25,6 +25,7 @@ import {
     PrimaryIpActionsService,
 } from "hetzner-sdk-ts";
 import { z } from "zod";
+import { listAll, withToolError } from "./tool-helpers.js";
 
 // Firewall rule: direction, protocol required; source_ips for 'in', destination_ips for 'out'; port for tcp/udp
 const firewallRuleSchema = z.object({
@@ -41,46 +42,6 @@ const firewallApplyToSchema = z.object({
     server: z.object({ id: z.number() }).optional(),
     label_selector: z.object({ selector: z.string() }).optional(),
 });
-
-const formatError = (error: unknown) => {
-    if (error instanceof Error) {
-        return error.message;
-    }
-    return String(error);
-};
-
-type ToolResult = {
-    content: Array<{ type: "text"; text: string } | { type: "image"; data: string; mimeType: string }>;
-    isError?: boolean;
-};
-
-async function withToolError(run: () => Promise<ToolResult>): Promise<ToolResult> {
-    try {
-        return await run();
-    } catch (error) {
-        return { content: [{ type: "text", text: `Error: ${formatError(error)}` }], isError: true };
-    }
-}
-
-type PageParams = { page: number; perPage: number };
-
-// Hetzner list endpoints are paginated (default 25, max 50 per page). Follow
-// meta.pagination.next_page so list tools return every item, not just page 1.
-// (Link headers are deprecated by Hetzner; meta.pagination is the supported mechanism.)
-async function listAll<T = unknown>(
-    fetchPage: (params: PageParams) => Promise<any>,
-    key: string,
-): Promise<T[]> {
-    const items: T[] = [];
-    let page: number | null = 1;
-    while (page != null) {
-        const response = await fetchPage({ page, perPage: 50 });
-        items.push(...((response?.[key] as T[] | undefined) ?? []));
-        const next: number | null = response?.meta?.pagination?.next_page ?? null;
-        page = next != null && next > page ? next : null; // guard against non-advancing pagination
-    }
-    return items;
-}
 
 export function registerTools(server: McpServer) {
     // --- Servers ---

@@ -10,4 +10,5 @@ export const SERVER_INSTRUCTIONS = `Hetzner Cloud API tools. Notes:
 - For private networks use subnet type "cloud". Type "server" is deprecated.
 - List tools return all pages. In large projects, prefer get_* by ID when you already know it.
 - Destructive tools (delete_*, reset_server, change_server_type, power_off_server) act immediately with no undo. Confirm with the user before using them on resources you did not create in this session.
+- DNS: zones are referenced by ID or name (example.com). RRSet names are relative to the zone ("@" is the apex) and lowercase. TXT values must be quoted ("\"v=spf1 -all\""). Use add_rrset_records to append (it creates the RRSet if missing). set_rrset_records replaces all records and import_zonefile replaces the whole zone, so export_zonefile first as a backup. change_rrset_ttl needs ttl, or null for the zone default. A new zone only answers once the registrar delegates the domain to its authoritative_nameservers.
 - Pricing: get_pricing returns prices per location and server type, in EUR, with and without VAT.`;
