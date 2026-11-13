@@ -150,6 +150,7 @@ Hetzner Robot (dedicated servers) is not covered yet; see [#21](https://github.c
 
 See [GitHub Releases](https://github.com/Xodus-CO/hcloud-mcp/releases) for full notes.
 
+- **0.4.1:** README update only (no code changes).
 - **0.4.0:** Removed the Hetzner SDK dependency; every tool now calls the API through one small fetch client. Every tool declares MCP annotations. `create_load_balancer` accepts an existing Primary IP, a network, services and targets.
 - **0.3.1:** Volumes use `assignee`. CI added. (Not published to npm separately; included in 0.4.0.)
 - **0.3.0:** Added DNS, Storage Boxes, certificates, snapshots and backups, rescue and console, metrics, and the remaining server, network and load balancer actions. Added `HCLOUD_TOOLSETS`.
