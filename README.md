@@ -14,7 +14,7 @@ Standalone **MCP (Model Context Protocol) server** for the [Hetzner Cloud API](h
 - Node.js 18+
 - A Hetzner Cloud API token. [Generate one](https://docs.hetzner.com/cloud/api/getting-started/generating-api-token) in the console (project → Security → API Tokens). Set it as `HCLOUD_TOKEN` in the environment or in your MCP client config. A token gives access to the whole project. If the agent only needs to look things up, create a **Read** token instead of Read & Write.
 
-The server runs locally over stdio. Your token is only sent to Hetzner's API (`api.hetzner.cloud` and `api.hetzner.com`).
+The server runs locally over stdio. Your token is only sent to Hetzner: `api.hetzner.cloud` for Cloud and DNS (DNS is part of the Cloud API), and `api.hetzner.com` for Storage Boxes. The legacy DNS Console API at `dns.hetzner.com` is not used.
 
 ## Installation
 
