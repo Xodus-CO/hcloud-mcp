@@ -18,6 +18,7 @@
     "start": "node dist/index.js",
     "dev": "tsc --watch",
     "test:smoke": "node scripts/smoke-mcp.mjs",
+    "test:robot": "node --test scripts/test-robot.mjs",
     "test:api": "node scripts/test-list-api.mjs",
     "test:mcp": "node scripts/test-mcp-list.mjs",
     "test:live": "node scripts/test-live-lifecycle.mjs",

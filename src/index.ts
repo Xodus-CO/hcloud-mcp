@@ -12,7 +12,9 @@ import { registerCertificateTools } from "./certificate-tools.js";
 import { registerImageTools } from "./image-tools.js";
 import { registerServerOpsTools } from "./server-ops-tools.js";
 import { registerActionGapTools } from "./action-gap-tools.js";
-import { SERVER_INSTRUCTIONS } from "./instructions.js";
+import { registerRobotTools } from "./robot-tools.js";
+import { robotConfigured } from "./robot-api.js";
+import { SERVER_INSTRUCTIONS, ROBOT_INSTRUCTIONS } from "./instructions.js";
 
 // Load .env from project root (parent of dist) so IDE-spawned server finds token when env isn't set
 if (!process.env.HCLOUD_TOKEN) {
@@ -25,9 +27,10 @@ if (!process.env.HCLOUD_TOKEN) {
     process.exit(1);
 }
 
+const robotEnabled = robotConfigured();
 const server = new McpServer(
     { name: "hetzner-cloud", version: "0.4.1" },
-    { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS }
+    { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS + (robotEnabled ? ROBOT_INSTRUCTIONS : "") }
 );
 
 // Tool groups. HCLOUD_TOOLSETS (comma-separated) limits which load, for clients with
@@ -39,6 +42,8 @@ const TOOLSETS: Record<string, Array<(s: McpServer) => void>> = {
     ops: [registerServerOpsTools],
     certificates: [registerCertificateTools],
     storage_boxes: [registerStorageBoxTools],
+    // Opt-in Hetzner Robot (dedicated servers): also needs HROBOT_USER and HROBOT_PASSWORD.
+    robot: [registerRobotTools],
 };
 const requested = (process.env.HCLOUD_TOOLSETS ?? "")
     .split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
@@ -50,7 +55,13 @@ if (unknown.length) {
 const enabled = requested.length === 0 || requested.includes("all")
     ? Object.keys(TOOLSETS)
     : ["core", ...requested.filter((t) => t !== "core")];
-for (const name of enabled) for (const register of TOOLSETS[name]) register(server);
+for (const name of enabled) {
+    if (name === "robot" && !robotEnabled) {
+        if (requested.includes("robot")) console.error("Warning: HCLOUD_TOOLSETS includes robot but HROBOT_USER / HROBOT_PASSWORD are not both set; Robot tools not loaded");
+        continue;
+    }
+    for (const register of TOOLSETS[name]) register(server);
+}
 
 async function main() {
     const transport = new StdioServerTransport();

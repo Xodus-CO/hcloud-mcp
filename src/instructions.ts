@@ -20,3 +20,13 @@ export const SERVER_INSTRUCTIONS = `Hetzner Cloud API tools. Notes:
 - Managed certificates only work for domains in a primary Hetzner DNS zone that is delegated to Hetzner. Certificates are attached to load balancers through http.certificates on update_load_balancer_service.
 - Storage Boxes live on api.hetzner.com and use the same token. Poll their actions with get_storage_box_action. rollback_storage_box_snapshot discards everything newer than the snapshot.
 - Pricing: get_pricing returns prices per location and server type, in EUR, with and without VAT.`;
+
+
+// Appended only when the Robot tools are enabled (HROBOT_USER and HROBOT_PASSWORD set).
+export const ROBOT_INSTRUCTIONS = `
+
+Hetzner Robot tools (robot_*) manage dedicated servers, which are separate from Cloud servers. Use the Robot server_number, not a Cloud server ID.
+- Rescue: robot_enable_rescue only arms the NEXT boot and does not reboot. After it, robot_reset_server (sw, or hw if the server is unresponsive) boots into rescue. Confirm with the user before any reset. robot_get_reset_options shows which types a server supports. Rescue disarms after one boot; robot_disable_rescue cancels it.
+- The rescue root_password is a secret: show it to the user only, never store it or pass it to other tools.
+- Robot rate limits are low (50 resets/hour, 10 wake-on-LAN/hour) and it blocks the caller's IP for 10 minutes after 3 failed logins, so do not retry authentication errors.
+- Cancellation, orders and billing are not available; use the Robot web interface.`;
