@@ -73,4 +73,25 @@ if (!(core.tools.length < dns.tools.length && dns.tools.length < names.length)) 
 }
 if (!dns.tools.some((t) => t.name === "list_zones") || core.tools.some((t) => t.name === "list_zones")) fail("dns toolset wiring");
 console.log(`ok   HCLOUD_TOOLSETS: core ${core.tools.length}, core+dns ${dns.tools.length}`);
+
+// Robot (#21): opt-in. No tools without both credentials; the server never contacts Robot here.
+const robotNames = (i) => i.tools.filter((t) => t.name.startsWith("robot_")).map((t) => t.name);
+if (robotNames(all).length) fail("robot tools present without HROBOT_* credentials");
+const onlyUser = await start({ HROBOT_USER: "smoke-user" });
+if (robotNames(onlyUser).length) fail("robot tools present with only HROBOT_USER set");
+const withRobot = await start({ HROBOT_USER: "smoke-user", HROBOT_PASSWORD: "smoke-pass" });
+const EXPECTED_ROBOT_TOOLS = 17;
+if (robotNames(withRobot).length !== EXPECTED_ROBOT_TOOLS) fail(`expected ${EXPECTED_ROBOT_TOOLS} robot tools, got ${robotNames(withRobot).length}`);
+if (withRobot.tools.length !== EXPECTED_TOOLS + EXPECTED_ROBOT_TOOLS) fail("robot tools should be additive to the cloud tools");
+for (const t of withRobot.tools.filter((t) => t.name.startsWith("robot_"))) {
+    if (t.annotations?.openWorldHint !== true || typeof t.annotations.readOnlyHint !== "boolean") fail(`${t.name}: annotations`);
+    if (!t.annotations.readOnlyHint && typeof t.annotations.destructiveHint !== "boolean") fail(`${t.name}: destructiveHint`);
+}
+if (!withRobot.instructions.includes("Hetzner Robot tools")) fail("robot instructions missing");
+if (all.instructions.includes("Hetzner Robot tools")) fail("robot instructions present without credentials");
+const robotCreds = { HROBOT_USER: "smoke-user", HROBOT_PASSWORD: "smoke-pass" };
+if (robotNames(await start({ ...robotCreds, HCLOUD_TOOLSETS: "dns" })).length) fail("HCLOUD_TOOLSETS=dns should drop robot tools");
+if (robotNames(await start({ ...robotCreds, HCLOUD_TOOLSETS: "robot" })).length !== EXPECTED_ROBOT_TOOLS) fail("HCLOUD_TOOLSETS=robot wiring");
+if (robotNames(await start({ HCLOUD_TOOLSETS: "robot" })).length) fail("HCLOUD_TOOLSETS=robot without credentials should load nothing");
+console.log(`ok   robot: opt-in gating, ${EXPECTED_ROBOT_TOOLS} tools with credentials`);
 console.log("smoke passed");

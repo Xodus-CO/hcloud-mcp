@@ -103,8 +103,37 @@ The server exposes 162 tools. Some MCP clients cap the total number of tools, or
 | `ops` | Rescue, console, root password, metrics |
 | `certificates` | TLS certificates |
 | `storage_boxes` | Storage Boxes, subaccounts, snapshots |
+| `robot` | Hetzner Robot dedicated-server tools; also needs `HROBOT_USER` and `HROBOT_PASSWORD` (see below) |
 
 Example: `"env": { "HCLOUD_TOKEN": "...", "HCLOUD_TOOLSETS": "dns,images" }`. If you leave it unset, or set it to `all`, everything loads. `core` alone is 91 tools; `core` plus `dns` is 112.
+
+### Hetzner Robot (dedicated servers, opt-in)
+
+The 17 `robot_*` tools manage **dedicated servers** through the [Robot webservice](https://robot.hetzner.com/doc/webservice/en.html). They are off by default. They load only when **both** `HROBOT_USER` and `HROBOT_PASSWORD` are set. Without them, the server has exactly the Cloud tools and never contacts Robot.
+
+Create a webservice user in Robot under *Settings > Web service and app settings*. It is separate from your Robot login. Set the credentials in the environment or in your MCP client config:
+
+```json
+"env": {
+  "HCLOUD_TOKEN": "...",
+  "HROBOT_USER": "#ws+12345678",
+  "HROBOT_PASSWORD": "..."
+}
+```
+
+Credentials are read only from the environment, sent only as HTTP Basic auth to `https://robot-ws.your-server.de` (the host in Hetzner's docs), and are never logged or included in errors or tool output. Robot blocks an IP for 10 minutes after 3 failed logins, so fix a rejected credential instead of retrying. `HCLOUD_TOKEN` is still required.
+
+| Kind | Tools |
+|---|---|
+| **Read** | `robot_list_servers`, `robot_get_server`, `robot_list_ips`, `robot_get_ip`, `robot_list_subnets`, `robot_get_subnet`, `robot_list_rdns`, `robot_get_rdns`, `robot_get_traffic`, `robot_get_boot_config` (rescue state), `robot_get_reset_options` |
+| **Rescue** | `robot_enable_rescue` (optional SSH key fingerprints; arms the next boot, no reboot), `robot_disable_rescue` |
+| **Reset** | `robot_reset_server` (`sw`, `hw`, `power`, `man`) |
+| **Reverse DNS** | `robot_set_rdns`, `robot_delete_rdns` |
+| **Power** | `robot_wake_on_lan` |
+
+Reads are `readOnlyHint`. `robot_reset_server`, `robot_enable_rescue`, `robot_disable_rescue` and `robot_delete_rdns` are `destructiveHint`. Cancellation, orders and billing are not covered; use the Robot web interface. Typical wipe flow: `robot_enable_rescue`, then `robot_reset_server` with `hw`, then log in to the rescue system (the root password is returned once by `robot_enable_rescue`; treat it as a secret).
+
+With `HCLOUD_TOOLSETS` set, list `robot` to keep the Robot tools (for example `core,robot`). Robot has low rate limits (50 resets and 10 wake-on-LAN packets per hour).
 
 ### Tool annotations
 
@@ -144,12 +173,12 @@ The tools follow the Hetzner API as of November 2026 ([Hetzner changelog](https:
 - **Unassign before deleting.** Floating IPs and Primary IPs must be unassigned before you delete them.
 - **Errors** come back as `code (status): message`, for example `not_found (404): server not found`.
 
-Hetzner Robot (dedicated servers) is not covered yet; see [#21](https://github.com/Xodus-CO/hcloud-mcp/issues/21).
 
 ## Changelog
 
 See [GitHub Releases](https://github.com/Xodus-CO/hcloud-mcp/releases) for full notes.
 
+- **Unreleased:** Opt-in Hetzner Robot tool group (`robot_*`) for dedicated servers, enabled by `HROBOT_USER` and `HROBOT_PASSWORD` (#21).
 - **0.4.1:** README update only (no code changes).
 - **0.4.0:** Removed the Hetzner SDK dependency; every tool now calls the API through one small fetch client. Every tool declares MCP annotations. `create_load_balancer` accepts an existing Primary IP, a network, services and targets.
 - **0.3.1:** Volumes use `assignee`. CI added. (Not published to npm separately; included in 0.4.0.)
@@ -201,6 +230,8 @@ With the MCP client connected, you can ask the agent to run tools using natural 
 | `src/server-ops-tools.ts` | Rescue, console, root password, server/LB metrics |
 | `src/certificate-tools.ts` | TLS certificates |
 | `src/storage-box-tools.ts` | Storage Boxes (api.hetzner.com, same token) |
+| `src/robot-api.ts`      | Robot webservice client (HTTP Basic auth, form bodies, error mapping) |
+| `src/robot-tools.ts`    | Opt-in `robot_*` tools (dedicated servers) |
 | `src/instructions.ts`   | Server instructions sent to MCP clients at initialize       |
 | `skills/hetzner-cloud/` | Agent skill (SKILL.md) for driving this server safely        |
 
@@ -211,6 +242,7 @@ npm run build   # compile
 npm run start   # run (requires HCLOUD_TOKEN)
 npm run dev     # watch and recompile
 npm run test:smoke # offline: server starts, 162 tools register with annotations, toolsets work (runs in CI)
+npm run test:robot # offline: Robot tools against a mocked fetch (runs in CI)
 npm run test:api   # read-only checks of the API client: pagination, error format (requires HCLOUD_TOKEN, run build first)
 npm run test:mcp   # integration test: MCP client calls list_locations (requires HCLOUD_TOKEN)
 npm run test:live:dns  # DNS create→teardown on a throwaway zone (free)
